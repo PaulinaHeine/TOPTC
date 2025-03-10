@@ -25,3 +25,6 @@ o.add_reader(r)
 o.seed_elements(lon=3, lat=60.5, number=1000, radius=30000, time=datetime(2024, 6, 15, 1, 11, 11 ))
 o.run(duration=timedelta(hours=11))
 o.animation(fast=True)
+
+
+print("Hi")
