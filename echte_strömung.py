@@ -26,5 +26,3 @@ o.seed_elements(lon=3, lat=60.5, number=1000, radius=30000, time=datetime(2024, 
 o.run(duration=timedelta(hours=11))
 o.animation(fast=True)
 
-
-print("Hi")
