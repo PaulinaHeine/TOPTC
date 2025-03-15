@@ -1,3 +1,5 @@
+#Daten aus https://data.marine.copernicus.eu/product/GLOBAL_ANALYSISFORECAST_PHY_001_024/download?dataset=cmems_mod_glo_phy_anfc_0.083deg_PT1H-m_202406
+
 import matplotlib
 matplotlib.use('TkAgg')
 from datetime import datetime, timedelta
