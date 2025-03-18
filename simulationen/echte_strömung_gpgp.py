@@ -8,7 +8,7 @@ from opendrift.models.plastdrift import PlastDrift # Beispiel, ändere den Namen
 
 
 # Datenpfad
-data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/currency_data/gpgp_long'
+data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
 
 # Laden des Datensatzes mit xarray
 ds = xr.open_dataset(data_path)
