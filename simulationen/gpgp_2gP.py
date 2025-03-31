@@ -5,6 +5,7 @@ import xarray as xr
 from opendrift.readers.reader_netCDF_CF_generic import Reader
 from opendrift.models.oceandrift import OceanDrift
 from Modelle.Plastic_Model_Custom import PlastElement, PlastDrift_M
+from Modelle.oceandrift_custom import OceanDrift_custom
 
 # Datenpfad
 data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
@@ -14,8 +15,8 @@ ds = xr.open_dataset(data_path)
 print(ds)
 
 # Einrichten des OceanDrift-Modells
-o = OceanDrift(loglevel=20)
-o2 = OceanDrift(loglevel=20)
+o = OceanDrift_custom(loglevel=20)
+o2 = OceanDrift_custom(loglevel=20)
 
 r = Reader(data_path)
 
@@ -42,7 +43,7 @@ o.run(duration=timedelta(hours=190))
 
 #o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=10, radius=30000, z=-depth, time=start_time)
 
-o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000,time=start_time, z=-depth , weight=0.025, size=0.0025, density=250)
+o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000,time=start_time, z=-depth )#, weight=0.025, size=0.0025, density=250)
 
 
 # Simulation durchführen

@@ -21,7 +21,8 @@ import logging; logger = logging.getLogger(__name__)
 from opendrift.models.basemodel import OpenDriftSimulation
 from opendrift.elements import LagrangianArray
 from opendrift.models.physics_methods import verticaldiffusivity_Large1994, verticaldiffusivity_Sundby1983, gls_tke, skillscore_liu_weissberg
-from opendrift.config import CONFIG_LEVEL_ESSENTIAL, CONFIG_LEVEL_BASIC, CONFIG_LEVEL_ADVANCED
+from opendrift.config import CONFIG_LEVEL_ESSENTIAL
+
 
 # Defining the oil element properties
 class Lagrangian3DArray(LagrangianArray):
@@ -50,7 +51,7 @@ class Lagrangian3DArray(LagrangianArray):
                                'default': 0.})])
 
 
-class OceanDrift(OpenDriftSimulation):
+class OceanDrift_custom(OpenDriftSimulation):
     """Open source buoyant particle trajectory model based on OpenDrift.
 
         Developed at MET Norway
