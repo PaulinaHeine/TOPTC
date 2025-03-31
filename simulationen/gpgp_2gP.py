@@ -14,8 +14,8 @@ ds = xr.open_dataset(data_path)
 print(ds)
 
 # Einrichten des OceanDrift-Modells
-o = PlastDrift(loglevel=20)
-o2 = PlastDrift(loglevel=20)
+o = OceanDrift(loglevel=20)
+o2 = OceanDrift(loglevel=20)
 
 r = Reader(data_path)
 
@@ -42,7 +42,7 @@ o.run(duration=timedelta(hours=190))
 
 #o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=10, radius=30000, z=-depth, time=start_time)
 
-o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000,time=start_time, z=-depth, weight=0.025, size=0.0025, density=250)
+o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000,time=start_time, z=-depth , weight=0.025, size=0.0025, density=250)
 
 
 # Simulation durchführen
