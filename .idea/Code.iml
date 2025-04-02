@@ -5,7 +5,7 @@
       <excludeFolder url="file://$MODULE_DIR$/opendrift_env" />
       <excludeFolder url="file://$MODULE_DIR$/opendrift_enviroment" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.11 (opendrift_env) (2)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Opendrift_Env" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

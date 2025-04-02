@@ -1,11 +1,11 @@
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('Qt5Agg')
 from datetime import datetime, timedelta
 import xarray as xr
 from opendrift.readers.reader_netCDF_CF_generic import Reader
 from opendrift.models.oceandrift import OceanDrift
 from Modelle.Plastic_Model_Custom import PlastElement, PlastDrift_M
-from Modelle.oceandrift_custom import OceanDrift_custom
+from Modelle.oceandrift_custom import OpenDriftPlastCustom
 
 # Datenpfad
 data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
@@ -15,16 +15,16 @@ ds = xr.open_dataset(data_path)
 print(ds)
 
 # Einrichten des OceanDrift-Modells
-o = OceanDrift_custom(loglevel=20)
-o2 = OceanDrift_custom(loglevel=20)
+o = OpenDriftPlastCustom(loglevel=20)
+o2 = OpenDriftPlastCustom(loglevel=20)
 
 r = Reader(data_path)
 
 o.add_reader(r)
-o.set_config('environment:fallback:land_binary_mask', 0)
+#o.set_config('environment:fallback:land_binary_mask', 0)
 
 o2.add_reader(r)
-o2.set_config('environment:fallback:land_binary_mask', 0)
+#o2.set_config('environment:fallback:land_binary_mask', 0)
 
 # Sicherstellen, dass start_time ein datetime-Objekt ist
 start_time = ds.time.values[0]
@@ -39,7 +39,7 @@ depth = ds.depth.values[0]  # Die einzige verfügbare Tiefe
 o.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000, z=-depth, time=start_time)
 
 # Simulation durchführen
-o.run(duration=timedelta(hours=190))
+o.run(duration=timedelta(hours=390))
 
 #o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=10, radius=30000, z=-depth, time=start_time)
 
@@ -47,7 +47,7 @@ o2.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000,ti
 
 
 # Simulation durchführen
-o2.run(duration=timedelta(hours=190))
+o2.run(duration=timedelta(hours=390))
 
 # Ergebnis visualisieren
 o.animation(fast = True, compare = o2)
