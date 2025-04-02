@@ -139,3 +139,6 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
 
         if merged:
             self.deactivate_elements(np.isnan(self.elements.lat))
+
+
+#Todo Exposure ist immernoch von etwas anderem abhängig als dem gewicht. Was ist es??
