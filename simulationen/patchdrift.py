@@ -36,12 +36,12 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]  # Die einzige verfügbare Tiefe
 
 #o.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000, z=-depth, time=start_time)
-o.seed_plastic_patch(radius_km = 150,number = 500, lon=mid_longitude, lat=mid_latitude, time = start_time)
+o.seed_plastic_patch(radius_km = 200,number = 400, lon=mid_longitude, lat=mid_latitude, time = start_time)
 
 
 # Simulation durchführen
-o.run(duration=timedelta(hours=590))
+o.run(duration=timedelta(hours=190))
 
 
 # Ergebnis visualisieren
-o.animation(fast = True, color='exposure')
+o.animation(fast = True, color='current_drift_factor')

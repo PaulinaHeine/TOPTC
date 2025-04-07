@@ -13,9 +13,6 @@ class Lagrangian3DArray(LagrangianArray):
         ('density', {'dtype': np.float32, 'units': 'kg/m^3', 'description': 'Density'}),
         ('weight', {'dtype': np.float32, 'units': 'kg', 'description': 'Total weight of patch'}),
         ('area', {'dtype': np.float32, 'units': 'm^2', 'description': 'Total area of patch'}),
-        ('shape', {'dtype': np.float32, 'units': '1', 'description': 'Shape factor of the patch'}),
-        ('elasticity', {'dtype': np.float32, 'units': '1', 'description': 'Elasticity factor of the patch'}),
-        ('exposure', {'dtype': np.float32, 'units': '1', 'description': 'Instantaneous flow exposure', 'default': 0.0}),
         ('drag_coefficient', {'dtype': np.float32, 'units': '1', 'description': 'Hydrodynamic drag coefficient', 'default': 1.0}),
         ('surface_area_ratio', {'dtype': np.float32, 'units': '1', 'description': 'Surface area to volume ratio', 'default': 1.0})
     ])
@@ -56,20 +53,24 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             rand_lat = lat + (random.uniform(-1, 1) * radius_km * km_to_deg)
             rand_lon = lon + (random.uniform(-1, 1) * radius_km * km_to_deg / np.cos(np.radians(lat)))
 
-            exposure = props['drift_factor'] / (1.0 + 0.1 * props['patch_weight'] + 0.1 * props['patch_area'] + 0.1 * props['patch_shape'] + 0.1 * props['patch_elasticity'])
+            density_factor = max(0.01, (1.025 - props['patch_density']) / 1.025)
+            area_factor = props['patch_area'] / 10.0
+            weight_factor = 1.0 / (1.0 + props['patch_weight'])
 
-            drag_coefficient = 0.47 * props['patch_shape']  # assume spherical reference
+            drift_factor = np.sqrt(density_factor * area_factor * weight_factor)
+            drift_factor = np.clip(drift_factor, 0.01, 0.2)
+
+            drag_coefficient = 0.47 * (1.0 + 0.5 * props['patch_density'])
+            drag_coefficient = np.clip(drag_coefficient, 0.1, 2.0)
+
             surface_area_ratio = props['patch_area'] / max(0.01, props['patch_weight'])
 
             self.seed_elements(
                 lon=rand_lon, lat=rand_lat, time=time, number=1,
-                current_drift_factor=props['drift_factor'],
+                current_drift_factor=drift_factor,
                 density=props['patch_density'],
                 weight=props['patch_weight'],
                 area=props['patch_area'],
-                shape=props['patch_shape'],
-                elasticity=props['patch_elasticity'],
-                exposure=exposure,
                 drag_coefficient=drag_coefficient,
                 surface_area_ratio=surface_area_ratio
             )
@@ -80,35 +81,25 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         self.merge_close_patches()
 
     def advect_ocean_current(self):
-        u = self.environment.x_sea_water_velocity * self.elements.current_drift_factor
-        v = self.environment.y_sea_water_velocity * self.elements.current_drift_factor
-
-        drag = self.elements.drag_coefficient * self.elements.surface_area_ratio
-        modifier = 1.0 / (1.0 + 0.1 * self.elements.weight + 0.1 * self.elements.area + drag)
-        u *= modifier
-        v *= modifier
-
-        self.elements.exposure = np.sqrt(u**2 + v**2)
-
-        logger.debug(f"u mean: {np.mean(u):.4f}, v mean: {np.mean(v):.4f}, modifier mean: {np.mean(modifier):.4f}")
-
+        u_rel = self.environment.x_sea_water_velocity * self.elements.current_drift_factor
+        v_rel = self.environment.y_sea_water_velocity * self.elements.current_drift_factor
+        speed = np.sqrt(u_rel**2 + v_rel**2)
+        max_speed = 0.05  # m/s
+        scale = np.clip(max_speed / (speed + 1e-8), 0, 1.0)
+        u = u_rel * scale
+        v = v_rel * scale
         self.update_positions(u, v)
 
     def stokes_drift(self):
         if not self.get_config('drift:stokes_drift'):
             return
-        u = self.environment.sea_surface_wave_stokes_drift_x_velocity
-        v = self.environment.sea_surface_wave_stokes_drift_y_velocity
-
-        drag = self.elements.drag_coefficient * self.elements.surface_area_ratio
-        modifier = 1.0 / (1.0 + 0.1 * self.elements.weight + 0.1 * self.elements.area + drag)
-        u *= modifier
-        v *= modifier
-
-        self.elements.exposure += np.sqrt(u**2 + v**2)
-
-        logger.debug(f"Stokes u mean: {np.mean(u):.4f}, v mean: {np.mean(v):.4f}, modifier mean: {np.mean(modifier):.4f}")
-
+        u_rel = self.environment.sea_surface_wave_stokes_drift_x_velocity * self.elements.current_drift_factor
+        v_rel = self.environment.sea_surface_wave_stokes_drift_y_velocity * self.elements.current_drift_factor
+        speed = np.sqrt(u_rel**2 + v_rel**2)
+        max_speed = 0.05  # m/s
+        scale = np.clip(max_speed / (speed + 1e-8), 0, 1.0)
+        u = u_rel * scale
+        v = v_rel * scale
         self.update_positions(u, v)
 
     def merge_close_patches(self, threshold_km=1.0):
@@ -126,19 +117,13 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                 if dist < threshold_deg:
                     self.elements.weight[i] += self.elements.weight[j]
                     self.elements.area[i] += self.elements.area[j]
-                    self.elements.shape[i] = (self.elements.shape[i] + self.elements.shape[j]) / 2
-                    self.elements.elasticity[i] = (self.elements.elasticity[i] + self.elements.elasticity[j]) / 2
                     self.elements.current_drift_factor[i] = (self.elements.current_drift_factor[i] + self.elements.current_drift_factor[j]) / 2
                     self.elements.density[i] = (self.elements.density[i] + self.elements.density[j]) / 2
                     self.elements.drag_coefficient[i] = (self.elements.drag_coefficient[i] + self.elements.drag_coefficient[j]) / 2
                     self.elements.surface_area_ratio[i] = (self.elements.surface_area_ratio[i] + self.elements.surface_area_ratio[j]) / 2
-                    self.elements.exposure[i] = self.elements.current_drift_factor[i] / (1.0 + 0.1 * self.elements.weight[i] + 0.1 * self.elements.area[i] + 0.1 * self.elements.shape[i] + 0.1 * self.elements.elasticity[i])
                     self.elements.lat[j] = np.nan
                     self.elements.lon[j] = np.nan
                     merged.add(j)
 
         if merged:
             self.deactivate_elements(np.isnan(self.elements.lat))
-
-
-#Todo Exposure ist immernoch von etwas anderem abhängig als dem gewicht. Was ist es??
