@@ -1,16 +1,36 @@
 import random
+import numpy as np
 
 PLASTIC_TYPES = {
-    "bottle":    {"density": 0.95, "unit_weight": 0.5, "unit_area": 0.2},
-    "net":       {"density": 0.92, "unit_weight": 0.7, "unit_area": 1.5},
-    "canister":  {"density": 0.94, "unit_weight": 0.6, "unit_area": 0.5},
-    "fragments": {"density": 1.02, "unit_weight": 0.2, "unit_area": 0.1},
-    "film":      {"density": 0.91, "unit_weight": 0.3, "unit_area": 0.15},
-    "foam":      {"density": 0.05, "unit_weight": 0.1, "unit_area": 0.05},
-    "microplastic": {"density": 1.05, "unit_weight": 0.01, "unit_area": 0.01}
+    # Haushalts- und Verpackungsabfälle
+    "bottle":       {"density": 0.95, "unit_weight": 0.5,  "unit_area": 0.1},   # PET-Flaschen
+    "canister":     {"density": 0.94, "unit_weight": 3.6,  "unit_area": 0.3},   # Kanister (HDPE)
+    "crate":        {"density": 0.95, "unit_weight": 3.0,  "unit_area": 0.4},   # Transportkisten
+    "barrel":       {"density": 0.94, "unit_weight": 8.0,  "unit_area": 1.0},   # Plastikfässer
+    "plastic_bin":  {"density": 0.96, "unit_weight": 5.0,  "unit_area": 0.8},   # Mülltonnen
+
+    # Fischerei- und Industrieabfälle
+    "net":          {"density": 0.92, "unit_weight": 0.7,  "unit_area": 1.2},   # Fischernetze
+    "buoy":         {"density": 0.8,  "unit_weight": 6.0,  "unit_area": 1.2},   # Schwimmkörper / Bojen
+    "pvc_pipe":     {"density": 1.4,  "unit_weight": 4.0,  "unit_area": 0.6},   # Rohre (PVC)
+
+    # Klein- und Mikroplastik
+    "fragments":    {"density": 1.02, "unit_weight": 0.2,  "unit_area": 0.05},  # Plastikbruchstücke
+    "film":         {"density": 0.91, "unit_weight": 0.3,  "unit_area": 0.15},  # Verpackungsfolie
+    "foam":         {"density": 0.05, "unit_weight": 0.1,  "unit_area": 0.08},  # Styropor
+    "microplastic": {"density": 1.05, "unit_weight": 0.01, "unit_area": 0.0001},# Partikel < 5 mm
+
+    # Weitere typische Funde
+    "toy":          {"density": 0.9,  "unit_weight": 0.2,  "unit_area": 0.1},   # Kunststoffspielzeug
+    "cap":          {"density": 0.92, "unit_weight": 0.05, "unit_area": 0.01},  # Flaschendeckel
+    "toothbrush":   {"density": 1.0,  "unit_weight": 0.03, "unit_area": 0.005}, # Zahnbürsten
+    "styrobox":     {"density": 0.03, "unit_weight": 0.2,  "unit_area": 0.8},   # Fischbox aus Styropor
+    "bag":          {"density": 0.91, "unit_weight": 0.1,  "unit_area": 1.0},   # Plastiksäcke
 }
 
-# TODO drift_factor warum definieren wir den der setzt sich dich aus eigenschaftenzusammen?
+
+
+
 def calculate_patch_properties(composition):
     total_weight = 0.0
     total_density = 0.0
@@ -35,11 +55,38 @@ def calculate_patch_properties(composition):
         "patch_area": total_area
     }
 
-def generate_random_patch(min_items=1, max_items=7, min_count=20, max_count=400):
-    items = random.sample(list(PLASTIC_TYPES.keys()), k=random.randint(min_items, max_items))
-    composition = {item: random.randint(min_count, max_count) for item in items}
+
+
+def generate_random_patch():
+    # Gewichtete Wahrscheinlichkeiten realistischer Fundhäufigkeit
+    weighted_types = [
+        "fragments", "fragments", "fragments", "fragments",  # häufiger
+        "bottle", "bottle", "film", "bag", "bag",
+        "net", "net",
+        "canister", "crate", "foam",
+        "plastic_bin", "barrel", "pvc_pipe",
+        "toy", "toy", "cap", "microplastic", "buoy"
+    ]
+
+    # Anzahl verschiedener Objekttypen im Patch
+    num_types = np.clip(int(np.random.normal(loc=5, scale=2)), 2, 7)
+
+    # Sample realistisch zusammengesetzte Objekte
+    items = random.sample(weighted_types, k=num_types)
+    items = list(set(items))  # doppelte vermeiden
+
+    # Größe der Patches (mehr große)
+    scale = np.random.lognormal(mean=6, sigma=0.6)  # Mittelwert ca. 400 (200–1000)
+    total_count = int(np.clip(scale, 100, 1000))
+
+    # Verteilung innerhalb des Patches
+    proportions = np.random.dirichlet(np.ones(len(items)))
+    composition = {item: int(total_count * p) for item, p in zip(items, proportions)}
+
     properties = calculate_patch_properties(composition)
+
     return {"composition": composition, "properties": properties}
+
 
 patch = generate_random_patch()
 print(patch)

@@ -84,7 +84,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         u_rel = self.environment.x_sea_water_velocity * self.elements.current_drift_factor
         v_rel = self.environment.y_sea_water_velocity * self.elements.current_drift_factor
         speed = np.sqrt(u_rel**2 + v_rel**2)
-        max_speed = 0.05  # m/s
+        max_speed = 0.05
         scale = np.clip(max_speed / (speed + 1e-8), 0, 1.0)
         u = u_rel * scale
         v = v_rel * scale
@@ -96,7 +96,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         u_rel = self.environment.sea_surface_wave_stokes_drift_x_velocity * self.elements.current_drift_factor
         v_rel = self.environment.sea_surface_wave_stokes_drift_y_velocity * self.elements.current_drift_factor
         speed = np.sqrt(u_rel**2 + v_rel**2)
-        max_speed = 0.05  # m/s
+        max_speed = 0.05
         scale = np.clip(max_speed / (speed + 1e-8), 0, 1.0)
         u = u_rel * scale
         v = v_rel * scale
