@@ -14,7 +14,8 @@ class Lagrangian3DArray(LagrangianArray):
         ('weight', {'dtype': np.float32, 'units': 'kg', 'description': 'Total weight of patch'}),
         ('area', {'dtype': np.float32, 'units': 'm^2', 'description': 'Total area of patch'}),
         ('drag_coefficient', {'dtype': np.float32, 'units': '1', 'description': 'Hydrodynamic drag coefficient', 'default': 1.0}),
-        ('surface_area_ratio', {'dtype': np.float32, 'units': '1', 'description': 'Surface area to volume ratio', 'default': 1.0})
+        ('surface_area_ratio', {'dtype': np.float32, 'units': '1', 'description': 'Surface area to volume ratio', 'default': 1.0}),
+        ('markersize', {'dtype': np.float32, 'units': '1', 'description': 'Size for plotting', 'default': 20.0})
     ])
 
 class OpenDriftPlastCustom(OpenDriftSimulation):
@@ -33,7 +34,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         super().__init__(*args, **kwargs)
 
         self._add_config({
-            'drift:stokes_drift': {'type': 'bool', 'default': True,
+            'drift:stokes_drift': {'type': 'bool', 'default': False,
                                    'description': 'Use Stokes drift',
                                    'level': 3},
             'drift:current_drift_factor': {'type': 'float', 'default': 1.0,
@@ -64,6 +65,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             drag_coefficient = np.clip(drag_coefficient, 0.1, 2.0)
 
             surface_area_ratio = props['patch_area'] / max(0.01, props['patch_weight'])
+            markersize = np.clip(props['patch_area'] * 100, 10, 300)
 
             self.seed_elements(
                 lon=rand_lon, lat=rand_lat, time=time, number=1,
@@ -72,12 +74,14 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                 weight=props['patch_weight'],
                 area=props['patch_area'],
                 drag_coefficient=drag_coefficient,
-                surface_area_ratio=surface_area_ratio
+                surface_area_ratio=surface_area_ratio,
+                markersize=markersize
             )
 
     def update(self):
         self.advect_ocean_current()
-        self.stokes_drift()
+        if self.get_config('drift:stokes_drift'):
+            self.stokes_drift()
         self.merge_close_patches()
 
     def advect_ocean_current(self):
@@ -91,8 +95,6 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         self.update_positions(u, v)
 
     def stokes_drift(self):
-        if not self.get_config('drift:stokes_drift'):
-            return
         u_rel = self.environment.sea_surface_wave_stokes_drift_x_velocity * self.elements.current_drift_factor
         v_rel = self.environment.sea_surface_wave_stokes_drift_y_velocity * self.elements.current_drift_factor
         speed = np.sqrt(u_rel**2 + v_rel**2)
@@ -102,7 +104,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         v = v_rel * scale
         self.update_positions(u, v)
 
-    def merge_close_patches(self, threshold_km=1.0):
+    def merge_close_patches(self, threshold_km=0.05):
         threshold_deg = threshold_km / 111.0
         positions = np.vstack([self.elements.lat, self.elements.lon]).T
         merged = set()
@@ -121,6 +123,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                     self.elements.density[i] = (self.elements.density[i] + self.elements.density[j]) / 2
                     self.elements.drag_coefficient[i] = (self.elements.drag_coefficient[i] + self.elements.drag_coefficient[j]) / 2
                     self.elements.surface_area_ratio[i] = (self.elements.surface_area_ratio[i] + self.elements.surface_area_ratio[j]) / 2
+                    self.elements.markersize[i] = min(300, self.elements.markersize[i] + self.elements.markersize[j])
                     self.elements.lat[j] = np.nan
                     self.elements.lon[j] = np.nan
                     merged.add(j)

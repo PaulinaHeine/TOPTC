@@ -3,10 +3,17 @@ matplotlib.use('Qt5Agg')
 from datetime import datetime, timedelta
 import xarray as xr
 from opendrift.readers.reader_netCDF_CF_generic import Reader
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import numpy as np
+#from Modelle.animation import animation_custom
 
 
 from Modelle.OpenDriftPlastCustom import OpenDriftPlastCustom
 
+############################################################################################################
+
+############################################################################################################
 # Datenpfad
 data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
 
@@ -22,9 +29,6 @@ r = Reader(data_path)
 
 o.add_reader(r)
 
-
-
-
 # Sicherstellen, dass start_time ein datetime-Objekt ist
 start_time = ds.time.values[0]
 if not isinstance(start_time, datetime):
@@ -36,12 +40,16 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]  # Die einzige verfügbare Tiefe
 
 #o.seed_elements(lon=mid_longitude, lat=mid_latitude, number=20, radius=30000, z=-depth, time=start_time)
-o.seed_plastic_patch(radius_km = 50,number = 400, lon=mid_longitude, lat=mid_latitude, time = start_time)
+o.seed_plastic_patch(radius_km = 1,number = 20, lon=mid_longitude, lat=mid_latitude, time = start_time)
 
 
 # Simulation durchführen
 o.run(duration=timedelta(hours=190))
 
 
-# Ergebnis visualisieren
+
+
+
 o.animation(fast = True, color='current_drift_factor')
+
+#o.plot(fast = True, background=['x_sea_water_velocity', 'y_sea_water_velocity'],linecolor='z')
