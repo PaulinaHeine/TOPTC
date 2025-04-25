@@ -1,95 +1,71 @@
 import matplotlib
 matplotlib.use('Qt5Agg')
-from opendrift.models.basemodel import OpenDriftSimulation
 from datetime import datetime, timedelta
-import numpy as np
 import xarray as xr
-import logging
 from opendrift.readers.reader_netCDF_CF_generic import Reader
-from Modelle.OpenDriftPlastCustom import OpenDriftPlastCustom
-from Modelle.GreedyBoat import GreedyBoat
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import numpy as np
+import logging
+from Modelle.OpenDriftPlastCustom_RUN import OpenDriftPlastCustom
+
+
+
+# Datenpfad
+data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
+
+# Laden des Datensatzes mit xarray
+ds = xr.open_dataset(data_path)
+print(ds)
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Datenpfad
-data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
 
-# Dataset laden
-ds = xr.open_dataset(data_path)
-print(ds)
+# Einrichten des OceanDrift-Modells
+o = OpenDriftPlastCustom(loglevel=logging.INFO) # TODO nur die loggerinfo und das von loglevel20
 
-# Plastikmodell initialisieren
-o = OpenDriftPlastCustom(loglevel=logging.INFO)
+
 r = Reader(data_path)
+
 o.add_reader(r)
 
-# Startzeit vorbereiten
+# Sicherstellen, dass start_time ein datetime-Objekt ist
 start_time = ds.time.values[0]
 if not isinstance(start_time, datetime):
     start_time = datetime.utcfromtimestamp(start_time.astype(int) * 1e-9)
 
-# Geografisches Zentrum des Gebiets
+# Setzen der Partikel
 mid_latitude = ds.latitude[int(len(ds.latitude) / 2)]
 mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
-depth = ds.depth.values[0]
+depth = ds.depth.values[0]  # Die einzige verfügbare Tiefe
 
-
-steps = 3
-dt = timedelta(hours=1)
-o.time_step = dt
-o.time = start_time
 
 o.seed_plastic_patch(radius_km = 10,number = 10, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
-o.prepare_run()
-
-
 print("=== Status vor Simulation ===")
 print("Total:", o.num_elements_total())
 print("Active:", o.num_elements_active())
 print("Deactivated:", o.num_elements_deactivated())
 
+# Simulation durchführen
+o.run(duration=timedelta(hours=100))
 
-
-
-
-for i in range(0,steps):
-    print("Aktueller Simulationszeitpunkt:", o.time)
-    o.update()
-
-    #print(f"Total: {o.num_elements_total()}, Active: {o.num_elements_active()}, Deactivated: {o.num_elements_deactivated()}")
-
-
-    # Aktuelle Positionen speichern
-
-    #print(o.elements.ID)
-    o.store_present_positions(IDs=o.elements.ID,lons=o.elements.lon ,lats=o.elements.lat )
-
-    print(o.elements)
-
-
-    # 4. Zeit voranschreiten
-    o.time += dt
-    i += 1
-
-# Aktive Patches anzeigen
-print("\n=== Aktive Patches ===")
 for i in range(o.num_elements_active()):
     val = o.elements.value[i]
     wgt = o.elements.weight[i]
     area = o.elements.area[i]
     dens = o.elements.density[i]
+
     print(f"Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f} m², Dichte = {dens:.3f} kg/m³")
 
-# Deaktivierte Patches anzeigen
-print("\n=== Deaktivierte Patches ===")
 for i in range(o.num_elements_deactivated()):
     val = o.elements.value[i]
     wgt = o.elements.weight[i]
     area = o.elements.area[i]
     dens = o.elements.density[i]
-    print(f"[DEAKTIVIERT] Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f} m², Dichte = {dens:.3f} kg/m³")
 
-# Animation anzeigen
-#o.animation(fast=True)
+print(f"Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f} m², Dichte = {dens:.3f} kg/m³")
+
+o.animation(fast = True, color='current_drift_factor')
+

@@ -6,10 +6,11 @@ from opendrift.elements import LagrangianArray
 from data.Patches.patch_composition import generate_random_patch
 import math
 from datetime import datetime
+
 import random
+
+
 import math
-
-
 
 def offset_point(lat, lon, offset_m=100):
     """Verschiebt (lat, lon) um festen Abstand offset_m in zufälliger Richtung."""
@@ -102,7 +103,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             )
 
             # Nur bei stepwise aktivieren
-            self.release_elements()
+            # self.release_elements()
 
 
 
@@ -120,7 +121,6 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                 )[0]
         self.advect_ocean_current()
         self.merge_close_patches()
-        
 
     def advect_ocean_current(self):
         u_rel = self.environment.x_sea_water_velocity * self.elements.current_drift_factor
