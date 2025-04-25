@@ -11,6 +11,7 @@ from Modelle.OpenDriftPlastCustom_RUN import OpenDriftPlastCustom
 
 
 
+
 # Datenpfad
 data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
 
@@ -30,6 +31,9 @@ o = OpenDriftPlastCustom(loglevel=logging.INFO) # TODO nur die loggerinfo und da
 r = Reader(data_path)
 
 o.add_reader(r)
+
+
+
 
 # Sicherstellen, dass start_time ein datetime-Objekt ist
 start_time = ds.time.values[0]
@@ -67,5 +71,7 @@ for i in range(o.num_elements_deactivated()):
 
 print(f"Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f} m², Dichte = {dens:.3f} kg/m³")
 
-o.animation(fast = True, color='current_drift_factor')
+#o.animatio(fast = True, color='current_drift_factor')
 
+
+o.animation_custom(fast = True, color='current_drift_factor')

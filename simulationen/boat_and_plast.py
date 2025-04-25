@@ -25,6 +25,8 @@ o = OpenDriftPlastCustom(loglevel=logging.INFO)
 r = Reader(data_path)
 o.add_reader(r)
 
+
+
 # Startzeit vorbereiten
 start_time = ds.time.values[0]
 if not isinstance(start_time, datetime):
@@ -36,9 +38,10 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]
 
 
-steps = 3
+steps = 30
 dt = timedelta(hours=1)
 o.time_step = dt
+o.time_step_output = timedelta(hours=1)
 o.time = start_time
 
 o.seed_plastic_patch(radius_km = 10,number = 10, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
@@ -50,8 +53,15 @@ print("Total:", o.num_elements_total())
 print("Active:", o.num_elements_active())
 print("Deactivated:", o.num_elements_deactivated())
 
-
-
+o.history = {
+    'lon': [],
+    'lat': [],
+    'z': [],
+    'id': [],
+    'status': [],
+    'value': []  # falls du Farben willst
+}
+times = []
 
 
 for i in range(0,steps):
@@ -60,19 +70,32 @@ for i in range(0,steps):
 
     #print(f"Total: {o.num_elements_total()}, Active: {o.num_elements_active()}, Deactivated: {o.num_elements_deactivated()}")
 
+    valid = np.isfinite(o.elements.lat) & np.isfinite(o.elements.lon)
 
-    # Aktuelle Positionen speichern
+    if np.sum(valid) == 0:
+        print(f"⚠️  Kein gültiger Partikel bei Schritt {step}, Frame wird nicht gespeichert.")
+        continue
 
-    #print(o.elements.ID)
-    o.store_present_positions(IDs=o.elements.ID,lons=o.elements.lon ,lats=o.elements.lat )
+    # Speichern nur gültiger Werte
+    o.history['lon'].append(np.copy(o.elements.lon[valid]))
+    o.history['lat'].append(np.copy(o.elements.lat[valid]))
+    o.history['z'].append(np.copy(o.elements.z[valid]))
+    o.history['id'].append(np.copy(o.elements.ID[valid]))
+    o.history['status'].append(np.copy(o.elements.status[valid]))
+    o.history['value'].append(np.copy(o.elements.value[valid]))
 
-    print(o.elements)
 
 
     # 4. Zeit voranschreiten
     o.time += dt
     i += 1
 
+for k in o.history:
+    o.history[k] = np.array(o.history[k])
+
+times = o.get_time_array()[0]
+
+print(times)
 # Aktive Patches anzeigen
 print("\n=== Aktive Patches ===")
 for i in range(o.num_elements_active()):
@@ -91,5 +114,11 @@ for i in range(o.num_elements_deactivated()):
     dens = o.elements.density[i]
     print(f"[DEAKTIVIERT] Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f} m², Dichte = {dens:.3f} kg/m³")
 
+#print(o.times)
+
+
+
+
+
 # Animation anzeigen
-#o.animation(fast=True)
+#o.animation_custom(fast=True)
