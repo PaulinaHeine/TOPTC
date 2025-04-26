@@ -42,6 +42,7 @@ class Lagrangian3DArray(LagrangianArray):
         ('surface_area_ratio', {'dtype': np.float32, 'units': '1', 'description': 'Surface area to volume ratio', 'default': 1.0}),
         ('markersize', {'dtype': np.float32, 'units': '1', 'description': 'Size for plotting', 'default': 20.0}),
         ('value', {'dtype': np.float32, 'units': '1', 'description': 'Reward value of patch', 'default': 1.0}),
+        ('patch_id', {'dtype': np.int32, 'units': '1', 'description': 'Unique Patch ID', 'default': -1}),
 
 
     ])
@@ -51,15 +52,12 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
 
     required_variables = {
         'x_sea_water_velocity': {'fallback': 0},
-        'y_sea_water_velocity': {'fallback': 0},
-        'sea_surface_height': {'fallback': 0},
-        'sea_surface_wave_stokes_drift_x_velocity': {'fallback': 0},
-        'sea_surface_wave_stokes_drift_y_velocity': {'fallback': 0},
-        'sea_floor_depth_below_sea_level': {'fallback': 10000},
+        'y_sea_water_velocity': {'fallback': 0}
     }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
 
         self._add_config({
             'drift:stokes_drift': {'type': 'bool', 'default': False,
@@ -71,9 +69,11 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                            'description': 'Factor to scale ocean current drift',
                                            'level': 3},
         })
+        self.next_patch_id = 0
 
     def seed_plastic_patch(self, lon, lat, time, number=1, radius_km=5, z = 1):
         for _ in range(number):
+
             patch = generate_random_patch()
             props = patch['properties']
 
@@ -109,8 +109,10 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                 value= value,
                 drag_coefficient=drag_coefficient,
                 surface_area_ratio=surface_area_ratio,
-                markersize=markersize
+                markersize=markersize,
+                patch_id=self.next_patch_id
             )
+            self.next_patch_id += 1
 
             # Nur bei stepwise aktivieren
             self.release_elements()
@@ -131,7 +133,10 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                 )[0]
         self.advect_ocean_current()
         self.merge_close_patches()
-        
+
+
+
+        self.elements.age_seconds += self.time_step.total_seconds()
 
     def advect_ocean_current(self):
         u_rel = self.environment.x_sea_water_velocity * self.elements.current_drift_factor

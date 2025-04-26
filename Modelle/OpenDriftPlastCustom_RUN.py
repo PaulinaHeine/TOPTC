@@ -50,11 +50,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
 
     required_variables = {
         'x_sea_water_velocity': {'fallback': 0},
-        'y_sea_water_velocity': {'fallback': 0},
-        'sea_surface_height': {'fallback': 0},
-        'sea_surface_wave_stokes_drift_x_velocity': {'fallback': 0},
-        'sea_surface_wave_stokes_drift_y_velocity': {'fallback': 0},
-        'sea_floor_depth_below_sea_level': {'fallback': 10000},
+        'y_sea_water_velocity': {'fallback': 0}
     }
 
     def __init__(self, *args, **kwargs):

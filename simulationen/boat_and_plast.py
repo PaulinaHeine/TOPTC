@@ -8,6 +8,7 @@ import logging
 from opendrift.readers.reader_netCDF_CF_generic import Reader
 from Modelle.OpenDriftPlastCustom import OpenDriftPlastCustom
 from Modelle.GreedyBoat import GreedyBoat
+from collections import defaultdict
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +25,15 @@ print(ds)
 o = OpenDriftPlastCustom(loglevel=logging.INFO)
 r = Reader(data_path)
 o.add_reader(r)
+
+lon_min = float(ds.longitude.min())
+lon_max = float(ds.longitude.max())
+lat_min = float(ds.latitude.min())
+lat_max = float(ds.latitude.max())
+
+o.simulation_extent = [lon_min, lon_max, lat_min, lat_max]
+
+
 
 
 
@@ -45,6 +55,8 @@ o.time_step_output = timedelta(hours=1)
 o.time = start_time
 
 o.seed_plastic_patch(radius_km = 10,number = 10, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+
+
 o.prepare_run()
 
 
@@ -53,49 +65,37 @@ print("Total:", o.num_elements_total())
 print("Active:", o.num_elements_active())
 print("Deactivated:", o.num_elements_deactivated())
 
-o.history = {
-    'lon': [],
-    'lat': [],
-    'z': [],
-    'id': [],
-    'status': [],
-    'value': []  # falls du Farben willst
-}
-times = []
 
 
+
+o.history = []
+
+#print(o.elements)
 for i in range(0,steps):
     print("Aktueller Simulationszeitpunkt:", o.time)
+    #print(o.elements)
     o.update()
 
-    #print(f"Total: {o.num_elements_total()}, Active: {o.num_elements_active()}, Deactivated: {o.num_elements_deactivated()}")
-
-    valid = np.isfinite(o.elements.lat) & np.isfinite(o.elements.lon)
-
-    if np.sum(valid) == 0:
-        print(f"⚠️  Kein gültiger Partikel bei Schritt {step}, Frame wird nicht gespeichert.")
-        continue
-
-    # Speichern nur gültiger Werte
-    o.history['lon'].append(np.copy(o.elements.lon[valid]))
-    o.history['lat'].append(np.copy(o.elements.lat[valid]))
-    o.history['z'].append(np.copy(o.elements.z[valid]))
-    o.history['id'].append(np.copy(o.elements.ID[valid]))
-    o.history['status'].append(np.copy(o.elements.status[valid]))
-    o.history['value'].append(np.copy(o.elements.value[valid]))
-
+    print(o.elements, o.environment)
+    pos = o.store_present_positions()
+    o.history.append(pos)
 
 
     # 4. Zeit voranschreiten
     o.time += dt
     i += 1
 
-for k in o.history:
-    o.history[k] = np.array(o.history[k])
 
-times = o.get_time_array()[0]
+print(o.history)
 
-print(times)
+
+#print(o.history)
+
+
+
+
+
+'''
 # Aktive Patches anzeigen
 print("\n=== Aktive Patches ===")
 for i in range(o.num_elements_active()):
@@ -115,7 +115,7 @@ for i in range(o.num_elements_deactivated()):
     print(f"[DEAKTIVIERT] Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f} m², Dichte = {dens:.3f} kg/m³")
 
 #print(o.times)
-
+'''
 
 
 

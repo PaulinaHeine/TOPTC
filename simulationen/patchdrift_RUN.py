@@ -53,7 +53,7 @@ print("Active:", o.num_elements_active())
 print("Deactivated:", o.num_elements_deactivated())
 
 # Simulation durchführen
-o.run(duration=timedelta(hours=100))
+o.run(duration=timedelta(hours=10))
 
 for i in range(o.num_elements_active()):
     val = o.elements.value[i]
@@ -71,7 +71,16 @@ for i in range(o.num_elements_deactivated()):
 
 print(f"Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f} m², Dichte = {dens:.3f} kg/m³")
 
-#o.animatio(fast = True, color='current_drift_factor')
 
 
-o.animation_custom(fast = True, color='current_drift_factor')
+print(o.export_variables)
+print(o.history)
+#print(o.elements)
+print(o.time_step)
+print(o.time_step_output)
+
+
+#o.animation(fast = True, color='current_drift_factor')
+
+
+#o.animation_custom(fast = True, color='current_drift_factor')
