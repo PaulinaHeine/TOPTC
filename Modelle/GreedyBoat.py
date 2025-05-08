@@ -6,9 +6,6 @@ from opendrift.elements import LagrangianArray
 logger = logging.getLogger(__name__)
 
 
- #ERST PATCHMODEL ZUM LAUFEN BRINGEN#
- # TODO Seperate Boat seeding methode (RELEASE ELEMENTS NICHT VERGESSEN)
-
 class GreedyBoatArray(LagrangianArray):
     variables = LagrangianArray.add_variables([
         ('speed_factor', {'dtype': np.float32, 'units': '1', 'description': 'Base speed factor', 'default': 1.0}),
@@ -35,6 +32,21 @@ class GreedyBoat(OpenDriftSimulation):
         super().update()
         self.move_toward_target()
         self.check_and_pick_new_target()
+        self.record_custom_history()
+
+    def seed_boat(self, lon, lat, number=1, time=None, speed_factor=1.0):
+        """Platziere ein Boot zu Beginn der Simulation."""
+        self.seed_elements(
+            lon=lon,
+            lat=lat,
+            number=number,
+            time=time,
+            target_lon=lon,  # direkt mitgeben
+            target_lat=lat,  # direkt mitgeben
+        )
+        self.elements.speed_factor[:] = speed_factor
+        logger.info(f"⚓ Boot geseedet bei ({lat}, {lon})")
+        self.release_elements()
 
     def move_toward_target(self):
         dlon = self.elements.target_lon - self.elements.lon
@@ -44,20 +56,9 @@ class GreedyBoat(OpenDriftSimulation):
         dlon_norm = dlon / (dist + 1e-8)
         dlat_norm = dlat / (dist + 1e-8)
 
-        ''' Erstmal ausgeschlossen, strömung die das Boot beeinflusst kommt später. 
-        # Stromgeschwindigkeit holen
-        u = self.environment.x_sea_water_velocity
-        v = self.environment.y_sea_water_velocity
 
-        current_mag = np.sqrt(u**2 + v**2)
-        u_norm = u / (current_mag + 1e-8)
-        v_norm = v / (current_mag + 1e-8)
 
-        # Einfluss der Strömung auf Vorwärtsbewegung
-        cos_theta = u_norm * dlon_norm + v_norm * dlat_norm
-        '''
-        # Basisbewegung # + Strömungseinfluss
-        step_deg = (0.06 / 111.0) * self.elements.speed_factor # * (1 + 0.5 * cos_theta) <- Strömung
+        step_deg = (0.06 / 111.0) * self.elements.speed_factor
 
         self.elements.lon += dlon_norm * step_deg
         self.elements.lat += dlat_norm * step_deg
@@ -100,3 +101,44 @@ class GreedyBoat(OpenDriftSimulation):
         self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[i_max]
 
         logger.info(f"Boot {boat_idx} visiert Patch {i_max} an (value = {values[i_max]:.2f})")
+
+    def record_custom_history(self):
+        if not hasattr(self, 'custom_history_list'):
+            self.custom_history_list = []
+
+        num_elements = self.num_elements_total()
+        for i in range(num_elements):
+            entry = (
+                int(i),  # ID
+                self.elements.status[i],
+                self.elements.moving[i],
+                float(self.elements.age_seconds[i]),
+                i,
+                float(self.elements.lon[i]),
+                float(self.elements.lat[i]),
+                float(self.elements.speed_factor[i]),
+                float(self.elements.target_lon[i]),
+                float(self.elements.target_lat[i])
+            )
+
+            while len(self.custom_history_list) <= i:
+                self.custom_history_list.append([])
+
+            self.custom_history_list[i].append(entry)
+
+    def get_structured_history(self):
+        import numpy as np
+        import numpy.ma as ma
+
+        dtype = [
+            ('ID', 'i4'), ('status', 'i4'), ('moving', 'i4'), ('age', 'f8'), ('idx', 'i4'),
+            ('lon', 'f8'), ('lat', 'f8'), ('speed_factor', 'f4'),
+            ('target_lon', 'f8'), ('target_lat', 'f8')
+        ]
+
+        all_records = []
+        for boat in self.custom_history_list:
+            arr = np.array(boat, dtype=dtype)
+            all_records.append(ma.masked_array(arr))
+
+        return ma.stack(all_records)

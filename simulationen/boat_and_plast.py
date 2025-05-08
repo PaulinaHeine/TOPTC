@@ -29,13 +29,18 @@ o = OpenDriftPlastCustom(loglevel=logging.INFO)
 r = Reader(data_path)
 o.add_reader(r)
 
+# boot initalisieren
+b = GreedyBoat(loglevel=logging.INFO, patches_model=o)
+r = Reader(data_path)
+b.add_reader(r)
+
 lon_min = float(ds.longitude.min())
 lon_max = float(ds.longitude.max())
 lat_min = float(ds.latitude.min())
 lat_max = float(ds.latitude.max())
 
 o.simulation_extent = [lon_min, lon_max, lat_min, lat_max]
-
+b.simulation_extent = [lon_min, lon_max, lat_min, lat_max]
 
 # Startzeit vorbereiten
 start_time = ds.time.values[0]
@@ -48,59 +53,50 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]
 
 
-steps = 20
+steps = 50
 dt = timedelta(hours=1)
 o.time_step = dt
 o.time_step_output = timedelta(hours=1)
 o.time = start_time
 
-o.seed_plastic_patch(radius_km = 10,number = 10, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+b.time_step = dt
+b.time_step_output = timedelta(hours=1)
+b.time = start_time
+
+o.seed_plastic_patch(radius_km = 1,number = 3, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+b.seed_boat(lon=mid_longitude, lat=mid_latitude,number=1, time = start_time, speed_factor=1) #ca 6kmh
 
 
 o.prepare_run()
-
-
-print("=== Status vor Simulation ===")
-print("Total:", o.num_elements_total())
-print("Active:", o.num_elements_active())
-print("Deactivated:", o.num_elements_deactivated())
+b.prepare_run()
 
 
 
 
-o.history = []
-
-
-
-#print(o.elements)
 for i in range(0,steps):
     print("Aktueller Simulationszeitpunkt:", o.time)
-    #print(o.elements)
+    b.update()
     o.update()
-
-    #print(o.elements, o.environment)
-    pos = o.store_present_positions()
-    o.history.append(pos)
 
 
     # 4. Zeit voranschreiten
     o.time += dt
+    b.time += dt
     i += 1
 
 
-#print(o.history)
-#print(o.get_custom_history())
-'''
-print(records)
-print(type(records))
-print(type(records[0]))
-print(type(records[0][0]))
-'''
+
+
 records = o.get_structured_history()
 o.history = records
 print(o.history)
 
-o.animation_custom(fast = True, color = "value")
+records_b = b.get_structured_history()
+b.history = records_b
+print(b.history)
+
+
+o.animation_custom(fast = True, compare= b)
 
 
 '''
@@ -133,5 +129,3 @@ for i in range(o.num_elements_deactivated()):
 
 
 # TODO Animation customizen (dann auch große punkte mögl?)
-# TODO ausgabewerte so sortieren dass sie von der animationsfunktion benutzt werden können
-

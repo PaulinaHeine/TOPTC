@@ -69,7 +69,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
 
     def seed_plastic_patch(self, lon, lat, time, number=1, radius_km=5, z = 1):
         for _ in range(number):
-            patch = generate_test_patch() #test
+            patch = generate_random_patch() #generate_test_patch() #test
             props = patch['properties']
 
             logger.info(f"Seeding patch with properties: {props}")

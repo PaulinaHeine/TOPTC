@@ -136,7 +136,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                 profiles=None
                                 )[0]
         self.advect_ocean_current()
-        self.merge_close_patches()
+        #self.merge_close_patches()
         self.record_custom_history()
         self.elements.age_seconds += self.time_step.total_seconds()
 
@@ -221,11 +221,11 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         if not hasattr(self, 'custom_history_list'):
             self.custom_history_list = []
 
-        num_elements = self.num_elements_active()
+        num_elements = self.num_elements_total()
         for i in range(num_elements):
             patch_id = int(self.elements.patch_id[i])
             entry = (
-                int(self.elements.patch_id[i]), 0, 1, float(self.elements.age_seconds[i]), i,
+                int(self.elements.patch_id[i]), self.elements.status[i], self.elements.moving[i], float(self.elements.age_seconds[i]), i,
                 round(float(self.elements.lon[i]), 8),
                 round(float(self.elements.lat[i]), 8),
                 float(self.elements.z[i]),
@@ -240,14 +240,18 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                 float(self.environment.y_sea_water_velocity[i])
             )
 
+
+
+
             # sicherstellen, dass Index für patch_id existiert
             while len(self.custom_history_list) <= patch_id - 1:
                 self.custom_history_list.append([])
 
-            self.custom_history_list[patch_id - 1].append(entry)
-
-
-
+            if entry[5] == "nan":
+                self.custom_history_list[-1].append(entry)
+                break
+            else:
+                self.custom_history_list[patch_id - 1].append(entry)
 
     def get_structured_history(self):
         import numpy as np
@@ -757,3 +761,4 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
 
         logger.info('Time to make animation: %s' %
                     (datetime.now() - start_time))
+        # TODO irgendwie farbe änderbar machen

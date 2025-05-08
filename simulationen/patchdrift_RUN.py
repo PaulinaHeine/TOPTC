@@ -48,14 +48,14 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]  # Die einzige verfügbare Tiefe
 
 
-o.seed_plastic_patch(radius_km = 10,number = 2, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+o.seed_plastic_patch(radius_km = 1,number = 20, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
 print("=== Status vor Simulation ===")
 print("Total:", o.num_elements_total())
 print("Active:", o.num_elements_active())
 print("Deactivated:", o.num_elements_deactivated())
 
 # Simulation durchführen
-o.run(duration=timedelta(hours=10))
+o.run(duration=timedelta(hours=100))
 
 for i in range(o.num_elements_active()):
     val = o.elements.value[i]
@@ -88,7 +88,7 @@ print(times)
 
 
 
-#o.animation(fast = True, color='current_drift_factor')
+o.animation(fast = True, color='current_drift_factor')
 
 
 #o.animation_custom(fast = True, color='current_drift_factor')
