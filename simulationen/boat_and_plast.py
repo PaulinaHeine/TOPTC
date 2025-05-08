@@ -53,7 +53,7 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]
 
 
-steps = 50
+steps = 200
 dt = timedelta(hours=1)
 o.time_step = dt
 o.time_step_output = timedelta(hours=1)
@@ -63,7 +63,7 @@ b.time_step = dt
 b.time_step_output = timedelta(hours=1)
 b.time = start_time
 
-o.seed_plastic_patch(radius_km = 1,number = 3, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+o.seed_plastic_patch(radius_km = 4,number = 4, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
 b.seed_boat(lon=mid_longitude, lat=mid_latitude,number=1, time = start_time, speed_factor=1) #ca 6kmh
 
 

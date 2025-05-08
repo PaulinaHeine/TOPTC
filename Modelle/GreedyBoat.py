@@ -68,26 +68,33 @@ class GreedyBoat(OpenDriftSimulation):
 
         for i in range(self.num_elements_active()):
             d = np.sqrt(
-                (self.elements.lon[i] - self.elements.target_lon[i])**2 +
-                (self.elements.lat[i] - self.elements.target_lat[i])**2
+                (self.elements.lon[i] - self.elements.target_lon[i]) ** 2 +
+                (self.elements.lat[i] - self.elements.target_lat[i]) ** 2
             )
             if d < threshold_deg:
                 logger.info(f" Boot {i} hat Ziel erreicht")
-                self.deactivate_patch_near(self.elements.target_lat[i], self.elements.target_lon[i])
+                # In check_and_pick_new_target:
+                self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i])
+
                 self.assign_target(i)
 
     def deactivate_patch_near(self, lat, lon, radius_km=0.1):
         threshold_deg = radius_km / 111.0
         for i in range(self.patches_model.num_elements_active()):
+            if self.patches_model.elements.status[i] != 0:
+                continue  # Nur aktive Patches berücksichtigen
+
             d = np.sqrt(
-                (self.patches_model.elements.lat[i] - lat)**2 +
-                (self.patches_model.elements.lon[i] - lon)**2
+                (self.patches_model.elements.lat[i] - lat) ** 2 +
+                (self.patches_model.elements.lon[i] - lon) ** 2
             )
             if d < threshold_deg:
                 self.patches_model.elements.lat[i] = np.nan
                 self.patches_model.elements.lon[i] = np.nan
                 logger.info(f"🧹 Patch {i} deaktiviert")
-        self.patches_model.deactivate_elements(np.isnan(self.patches_model.elements.lat))
+
+
+
 
     def assign_target(self, boat_idx):
         if self.patches_model.num_elements_active() == 0:
