@@ -9,6 +9,9 @@ from opendrift.readers.reader_netCDF_CF_generic import Reader
 from Modelle.OpenDriftPlastCustom import OpenDriftPlastCustom
 from Modelle.GreedyBoat import GreedyBoat
 from collections import defaultdict
+import random
+random.seed(42)
+np.random.seed(42)
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO)
@@ -34,9 +37,6 @@ lat_max = float(ds.latitude.max())
 o.simulation_extent = [lon_min, lon_max, lat_min, lat_max]
 
 
-
-
-
 # Startzeit vorbereiten
 start_time = ds.time.values[0]
 if not isinstance(start_time, datetime):
@@ -48,7 +48,7 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]
 
 
-steps = 30
+steps = 20
 dt = timedelta(hours=1)
 o.time_step = dt
 o.time_step_output = timedelta(hours=1)
@@ -70,13 +70,15 @@ print("Deactivated:", o.num_elements_deactivated())
 
 o.history = []
 
+
+
 #print(o.elements)
 for i in range(0,steps):
     print("Aktueller Simulationszeitpunkt:", o.time)
     #print(o.elements)
     o.update()
 
-    print(o.elements, o.environment)
+    #print(o.elements, o.environment)
     pos = o.store_present_positions()
     o.history.append(pos)
 
@@ -86,13 +88,19 @@ for i in range(0,steps):
     i += 1
 
 
+#print(o.history)
+#print(o.get_custom_history())
+'''
+print(records)
+print(type(records))
+print(type(records[0]))
+print(type(records[0][0]))
+'''
+records = o.get_structured_history()
+o.history = records
 print(o.history)
 
-
-#print(o.history)
-
-
-
+o.animation_custom(fast = True, color = "value")
 
 
 '''
@@ -122,3 +130,8 @@ for i in range(o.num_elements_deactivated()):
 
 # Animation anzeigen
 #o.animation_custom(fast=True)
+
+
+# TODO Animation customizen (dann auch große punkte mögl?)
+# TODO ausgabewerte so sortieren dass sie von der animationsfunktion benutzt werden können
+

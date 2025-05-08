@@ -8,8 +8,10 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 import logging
 from Modelle.OpenDriftPlastCustom_RUN import OpenDriftPlastCustom
+import random
 
-
+random.seed(42)
+np.random.seed(42)
 
 
 # Datenpfad
@@ -46,7 +48,7 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]  # Die einzige verfügbare Tiefe
 
 
-o.seed_plastic_patch(radius_km = 10,number = 10, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+o.seed_plastic_patch(radius_km = 10,number = 2, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
 print("=== Status vor Simulation ===")
 print("Total:", o.num_elements_total())
 print("Active:", o.num_elements_active())
@@ -75,12 +77,21 @@ print(f"Patch {i}: Wert = {val:.2f}, Gewicht = {wgt:.2f} kg, Fläche = {area:.2f
 
 print(o.export_variables)
 print(o.history)
-#print(o.elements)
-print(o.time_step)
-print(o.time_step_output)
+
+print(type(o.history))
+print(type(o.history[0]))
+print(type(o.history[0][0]))
+
+times = o.get_time_array()[0]
+print(times)
+
+
 
 
 #o.animation(fast = True, color='current_drift_factor')
 
 
 #o.animation_custom(fast = True, color='current_drift_factor')
+
+
+

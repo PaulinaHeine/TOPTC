@@ -6,6 +6,9 @@ from opendrift.elements import LagrangianArray
 logger = logging.getLogger(__name__)
 
 
+ #ERST PATCHMODEL ZUM LAUFEN BRINGEN#
+ # TODO Seperate Boat seeding methode (RELEASE ELEMENTS NICHT VERGESSEN)
+
 class GreedyBoatArray(LagrangianArray):
     variables = LagrangianArray.add_variables([
         ('speed_factor', {'dtype': np.float32, 'units': '1', 'description': 'Base speed factor', 'default': 1.0}),
@@ -29,7 +32,7 @@ class GreedyBoat(OpenDriftSimulation):
         self.patches_model = patches_model
 
     def update(self):
-
+        super().update()
         self.move_toward_target()
         self.check_and_pick_new_target()
 
@@ -41,6 +44,7 @@ class GreedyBoat(OpenDriftSimulation):
         dlon_norm = dlon / (dist + 1e-8)
         dlat_norm = dlat / (dist + 1e-8)
 
+        ''' Erstmal ausgeschlossen, strömung die das Boot beeinflusst kommt später. 
         # Stromgeschwindigkeit holen
         u = self.environment.x_sea_water_velocity
         v = self.environment.y_sea_water_velocity
@@ -51,9 +55,9 @@ class GreedyBoat(OpenDriftSimulation):
 
         # Einfluss der Strömung auf Vorwärtsbewegung
         cos_theta = u_norm * dlon_norm + v_norm * dlat_norm
-
-        # Basisbewegung + Strömungseinfluss
-        step_deg = (0.06 / 111.0) * self.elements.speed_factor * (1 + 0.5 * cos_theta)
+        '''
+        # Basisbewegung # + Strömungseinfluss
+        step_deg = (0.06 / 111.0) * self.elements.speed_factor # * (1 + 0.5 * cos_theta) <- Strömung
 
         self.elements.lon += dlon_norm * step_deg
         self.elements.lat += dlat_norm * step_deg
@@ -67,7 +71,7 @@ class GreedyBoat(OpenDriftSimulation):
                 (self.elements.lat[i] - self.elements.target_lat[i])**2
             )
             if d < threshold_deg:
-                logger.info(f"🚤 Boot {i} hat Ziel erreicht")
+                logger.info(f" Boot {i} hat Ziel erreicht")
                 self.deactivate_patch_near(self.elements.target_lat[i], self.elements.target_lon[i])
                 self.assign_target(i)
 
@@ -95,4 +99,4 @@ class GreedyBoat(OpenDriftSimulation):
         self.elements.target_lat[boat_idx] = self.patches_model.elements.lat[i_max]
         self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[i_max]
 
-        logger.info(f"🎯 Boot {boat_idx} visiert Patch {i_max} an (value = {values[i_max]:.2f})")
+        logger.info(f"Boot {boat_idx} visiert Patch {i_max} an (value = {values[i_max]:.2f})")

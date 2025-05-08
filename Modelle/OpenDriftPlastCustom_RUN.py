@@ -3,7 +3,7 @@ import numpy as np
 import logging; logger = logging.getLogger(__name__)
 from opendrift.models.basemodel import OpenDriftSimulation
 from opendrift.elements import LagrangianArray
-from data.Patches.patch_composition import generate_random_patch
+from data.Patches.patch_composition import generate_random_patch, generate_test_patch
 import math
 from datetime import datetime
 
@@ -69,7 +69,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
 
     def seed_plastic_patch(self, lon, lat, time, number=1, radius_km=5, z = 1):
         for _ in range(number):
-            patch = generate_random_patch()
+            patch = generate_test_patch() #test
             props = patch['properties']
 
             logger.info(f"Seeding patch with properties: {props}")
@@ -91,8 +91,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             surface_area_ratio = props['patch_area'] / max(0.01, props['patch_weight'])
             markersize = np.clip(props['patch_area'] * 100, 10, 300)
 
-            value = props['patch_area'] * props['patch_density'] / (1 +  props['patch_weight'])
-
+            value =(props['patch_area'] * props['patch_density'] * props['patch_weight'])
 
             self.seed_elements(
                 lon=rand_lon, lat=rand_lat, time=time, number=1,

@@ -3,7 +3,7 @@ import numpy as np
 import logging; logger = logging.getLogger(__name__)
 from opendrift.models.basemodel import OpenDriftSimulation
 from opendrift.elements import LagrangianArray
-from data.Patches.patch_composition import generate_random_patch
+from data.Patches.patch_composition import generate_random_patch, generate_test_patch
 import math
 from datetime import datetime
 import random
@@ -69,12 +69,13 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                            'description': 'Factor to scale ocean current drift',
                                            'level': 3},
         })
-        self.next_patch_id = 0
+        self.next_patch_id = 1 # pacht id startet bei 1, nicht bei 0
+        self.custom_history = []
 
     def seed_plastic_patch(self, lon, lat, time, number=1, radius_km=5, z = 1):
         for _ in range(number):
 
-            patch = generate_random_patch()
+            patch = generate_random_patch() #generate_test_patch()
             props = patch['properties']
 
             logger.info(f"Seeding patch with properties: {props}")
@@ -96,8 +97,11 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             surface_area_ratio = props['patch_area'] / max(0.01, props['patch_weight'])
             markersize = np.clip(props['patch_area'] * 100, 10, 300)
 
-            value = props['patch_area'] * props['patch_density'] / (1 +  props['patch_weight'])
+            value = (props['patch_area'] * props['patch_density'] * props['patch_weight'])
 
+            # optional  props['patch_area'] * props['patch_density'] / (1 +  props['patch_weight'])
+            # Todo: skalieren(?)
+            # Wenn das Gewicht die Kapazität der Boote limitiert, ist viel Gewicht erstmal schlecht
 
             self.seed_elements(
                 lon=rand_lon, lat=rand_lat, time=time, number=1,
@@ -115,7 +119,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             self.next_patch_id += 1
 
             # Nur bei stepwise aktivieren
-            self.release_elements()
+            self.release_elements() #AAGGGGGGGGGGGG
 
 
 
@@ -133,10 +137,9 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                 )[0]
         self.advect_ocean_current()
         self.merge_close_patches()
-
-
-
+        self.record_custom_history()
         self.elements.age_seconds += self.time_step.total_seconds()
+
 
     def advect_ocean_current(self):
         u_rel = self.environment.x_sea_water_velocity * self.elements.current_drift_factor
@@ -212,6 +215,60 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         if removed > 0:
             self.deactivate_elements(np.isnan(self.elements.lat))
             logger.info(f"{removed} große Patches wurden zufällig entfernt.")
+
+
+    def record_custom_history(self):
+        if not hasattr(self, 'custom_history_list'):
+            self.custom_history_list = []
+
+        num_elements = self.num_elements_active()
+        for i in range(num_elements):
+            patch_id = int(self.elements.patch_id[i])
+            entry = (
+                int(self.elements.patch_id[i]), 0, 1, float(self.elements.age_seconds[i]), i,
+                round(float(self.elements.lon[i]), 8),
+                round(float(self.elements.lat[i]), 8),
+                float(self.elements.z[i]),
+                float(self.elements.density[i]),
+                float(self.elements.drag_coefficient[i]),
+                float(self.elements.area[i]),
+                float(self.elements.weight[i]),
+                float(self.elements.current_drift_factor[i]),
+                float(self.elements.surface_area_ratio[i]),
+                float(self.elements.value[i]),
+                float(self.environment.x_sea_water_velocity[i]),
+                float(self.environment.y_sea_water_velocity[i])
+            )
+
+            # sicherstellen, dass Index für patch_id existiert
+            while len(self.custom_history_list) <= patch_id - 1:
+                self.custom_history_list.append([])
+
+            self.custom_history_list[patch_id - 1].append(entry)
+
+
+
+
+    def get_structured_history(self):
+        import numpy as np
+        import numpy.ma as ma
+
+        dtype = [
+            ('ID', 'i4'), ('unused1', 'i4'), ('unused2', 'i4'), ('age', 'f8'), ('idx', 'i4'),
+            ('lon', 'f8'), ('lat', 'f8'), ('z', 'f4'), ('density', 'f4'),
+            ('drag', 'f4'), ('area', 'f4'), ('weight', 'f4'), ('drift_factor', 'f4'),
+            ('surface_ratio', 'f4'), ('value', 'f4'),
+            ('u', 'f4'), ('v', 'f4')
+        ]
+
+        all_records = []
+        for patch in self.custom_history_list:
+            arr = np.array(patch, dtype=dtype)
+            all_records.append(ma.masked_array(arr))
+
+        return ma.stack(all_records)
+
+
 
 
     def animation_custom(self,
@@ -388,7 +445,9 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                            self.history['mass_evaporated'][:, i])))
 
                 if color is not False:  # Update colors
-                    points.set_array(colorarray[:, i])
+                    points.set_array(colorarray[:,i])  # shape (particles,) == rank 1
+
+
                     if compare is not None:
                         for cd in compare_list:
                             cd['points_other'].set_array(colorarray[:, i])
@@ -431,23 +490,20 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             ax.plot(x, y, color='gray', alpha=trajectory_alpha, transform=gcrs)
 
         if color is not False and show_elements is True:
-            if isinstance(color, str):
-                colorarray = self.get_property(color)[0].T
-                colorarray = colorarray * unitfactor
-                colorarray_deactivated = \
-                    self.get_property(color)[0][
-                        index_of_last[self.elements_deactivated.ID-1],
-                                      self.elements_deactivated.ID-1].T
-            elif hasattr(color,
-                         '__len__'):  # E.g. array/list of ensemble numbers
-                colorarray_deactivated = color[self.elements_deactivated.ID -
-                                               1]
-                colorarray = np.tile(color, (self.steps_output, 1)).T
-            else:
-                colorarray = color
+            records = self.get_structured_history()
+
+
+            colorarray = np.stack([patch[color] for patch in records], axis=0) * unitfactor
+            colorarray_deactivated = np.full_like(colorarray, np.nan)
+
+            if colorarray.size == 0:
+                raise ValueError("colorarray ist leer – keine Daten zum Visualisieren.")
+
             if vmin is None:
-                vmin = colorarray.min()
-                vmax = colorarray.max()
+                vmin = np.nanmin(colorarray)
+            if vmax is None:
+                vmax = np.nanmax(colorarray)
+
 
         if background is not None:
             if isinstance(background, xr.DataArray):
@@ -492,7 +548,11 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                  cmap=cmap,
                                  transform=gcrs)
 
-        times = self.get_time_array()[0]
+        from datetime import timedelta
+        times = [
+            self.start_time + timedelta(seconds=float(e['age']))
+            for e in self.get_structured_history()[0]
+        ]
         if show_elements is True:
             index_of_last_deactivated = \
                 index_of_last[self.elements_deactivated.ID-1]
@@ -697,4 +757,3 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
 
         logger.info('Time to make animation: %s' %
                     (datetime.now() - start_time))
-

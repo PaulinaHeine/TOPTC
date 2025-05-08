@@ -87,6 +87,12 @@ def generate_random_patch():
 
     return {"composition": composition, "properties": properties}
 
+def generate_test_patch():
+    composition = {
+        "bottle": 100,
+        "net": 20,
+        "foam": 50
+    }
+    properties = calculate_patch_properties(composition)
+    return {"composition": composition, "properties": properties}
 
-patch = generate_random_patch()
-print(patch)
