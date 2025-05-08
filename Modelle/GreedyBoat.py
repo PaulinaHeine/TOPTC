@@ -12,7 +12,9 @@ class GreedyBoatArray(LagrangianArray):
         ('target_lon', {'dtype': np.float32, 'units': 'deg', 'description': 'Target longitude'}),
         ('target_lat', {'dtype': np.float32, 'units': 'deg', 'description': 'Target latitude'}),
         ('current_drift_factor', {'dtype': np.float32, 'units': '1', 'description': 'For compatibility', 'default': 10.0}),
+        ('is_patch', {'dtype': np.bool_, 'units': '1', 'description': 'True if element is a patch', 'default': False}),
     ])
+
 
 
 
@@ -80,21 +82,33 @@ class GreedyBoat(OpenDriftSimulation):
 
     def deactivate_patch_near(self, lat, lon, radius_km=0.1):
         threshold_deg = radius_km / 111.0
-        for i in range(self.patches_model.num_elements_active()):
+        num = self.patches_model.num_elements_total()
+
+        to_deactivate = np.zeros(num, dtype=bool)
+
+        for i in range(num):
             if self.patches_model.elements.status[i] != 0:
-                continue  # Nur aktive Patches berücksichtigen
+                continue  # nur aktive
+
+            if not self.patches_model.elements.is_patch[i]:
+                continue  # nur Patches, keine Boote
 
             d = np.sqrt(
                 (self.patches_model.elements.lat[i] - lat) ** 2 +
                 (self.patches_model.elements.lon[i] - lon) ** 2
             )
+
             if d < threshold_deg:
+                # Patch als "deaktiviert" markieren
+                self.patches_model.elements.value[i] = 0.0
                 self.patches_model.elements.lat[i] = np.nan
                 self.patches_model.elements.lon[i] = np.nan
                 logger.info(f"🧹 Patch {i} deaktiviert")
 
 
-
+        # Deaktivieren aller NaN-Patches (wie in deinem Beispiel)
+        self.patches_model.deactivate_elements(np.isnan(self.patches_model.elements.lat))
+        #self.patches_model.remove_deactivated_elements()
 
     def assign_target(self, boat_idx):
         if self.patches_model.num_elements_active() == 0:

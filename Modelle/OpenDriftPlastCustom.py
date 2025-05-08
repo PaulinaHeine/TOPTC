@@ -43,6 +43,7 @@ class Lagrangian3DArray(LagrangianArray):
         ('markersize', {'dtype': np.float32, 'units': '1', 'description': 'Size for plotting', 'default': 20.0}),
         ('value', {'dtype': np.float32, 'units': '1', 'description': 'Reward value of patch', 'default': 1.0}),
         ('patch_id', {'dtype': np.int32, 'units': '1', 'description': 'Unique Patch ID', 'default': -1}),
+        ('is_patch', {'dtype': np.bool_, 'units': '1', 'description': 'True if element is a patch', 'default': True}),
 
 
     ])
@@ -222,6 +223,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             self.custom_history_list = []
 
         num_elements = self.num_elements_total()
+
         for i in range(num_elements):
             patch_id = int(self.elements.patch_id[i])
             entry = (
@@ -239,8 +241,6 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                 float(self.environment.x_sea_water_velocity[i]),
                 float(self.environment.y_sea_water_velocity[i])
             )
-
-
 
 
             # sicherstellen, dass Index für patch_id existiert
