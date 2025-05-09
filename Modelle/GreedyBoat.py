@@ -13,6 +13,8 @@ class GreedyBoatArray(LagrangianArray):
         ('target_lat', {'dtype': np.float32, 'units': 'deg', 'description': 'Target latitude'}),
         ('current_drift_factor', {'dtype': np.float32, 'units': '1', 'description': 'For compatibility', 'default': 10.0}),
         ('is_patch', {'dtype': np.bool_, 'units': '1', 'description': 'True if element is a patch', 'default': False}),
+        ('target_patch_index', {'dtype': np.int32, 'units': '1', 'description': 'Index of target patch', 'default': -1}),
+
     ])
 
 
@@ -51,6 +53,12 @@ class GreedyBoat(OpenDriftSimulation):
         self.release_elements()
 
     def move_toward_target(self):
+
+        patch_idx = self.elements.target_patch_index
+
+        self.elements.target_lon = self.patches_model.elements.lon[patch_idx]
+        self.elements.target_lat = self.patches_model.elements.lat[patch_idx]
+
         dlon = self.elements.target_lon - self.elements.lon
         dlat = self.elements.target_lat - self.elements.lat
         dist = np.sqrt(dlon**2 + dlat**2)
@@ -58,12 +66,12 @@ class GreedyBoat(OpenDriftSimulation):
         dlon_norm = dlon / (dist + 1e-8)
         dlat_norm = dlat / (dist + 1e-8)
 
-
-
         step_deg = (0.06 / 111.0) * self.elements.speed_factor
 
         self.elements.lon += dlon_norm * step_deg
         self.elements.lat += dlat_norm * step_deg
+
+
 
     def check_and_pick_new_target(self, threshold_km=0.1):
         threshold_deg = threshold_km / 111.0
@@ -75,6 +83,8 @@ class GreedyBoat(OpenDriftSimulation):
             )
             if d < threshold_deg:
                 logger.info(f" Boot {i} hat Ziel erreicht")
+
+
                 # In check_and_pick_new_target:
                 self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i])
 
@@ -108,7 +118,7 @@ class GreedyBoat(OpenDriftSimulation):
 
         # Deaktivieren aller NaN-Patches (wie in deinem Beispiel)
         self.patches_model.deactivate_elements(np.isnan(self.patches_model.elements.lat))
-        #self.patches_model.remove_deactivated_elements()
+
 
     def assign_target(self, boat_idx):
         if self.patches_model.num_elements_active() == 0:
@@ -118,8 +128,11 @@ class GreedyBoat(OpenDriftSimulation):
         values = self.patches_model.elements.value[:self.patches_model.num_elements_active()]
         i_max = np.argmax(values)
 
+
         self.elements.target_lat[boat_idx] = self.patches_model.elements.lat[i_max]
         self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[i_max]
+        self.elements.target_patch_index[boat_idx] = i_max
+
 
         logger.info(f"Boot {boat_idx} visiert Patch {i_max} an (value = {values[i_max]:.2f})")
 
@@ -163,3 +176,5 @@ class GreedyBoat(OpenDriftSimulation):
             all_records.append(ma.masked_array(arr))
 
         return ma.stack(all_records)
+
+#Todo manchmal sieht der weg des boots weird aus warum amcht der solche schlenker
