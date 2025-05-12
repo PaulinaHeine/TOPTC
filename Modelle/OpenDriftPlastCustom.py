@@ -273,8 +273,247 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         return ma.stack(all_records)
 
 
+    # punkte unterschiedlich groß aber compare geht nicht
+    def animation_custom_2(self,
+                         buffer=.2,
+                         corners=None,
+                         filename=None,
+                         compare=None,
+                         compare_marker='o',
+                         background=None,
+                         bgalpha=.5,
+                         vmin=None,
+                         vmax=None,
+                         drifter=None,
+                         skip=None,
+                         scale=None,
+                         color=False,
+                         size=False,
+                         clabel=None,
+                         colorbar=True,
+                         cmap=None,
+                         density=False,
+                         show_elements=True,
+                         show_trajectories=False,
+                         trajectory_alpha=.1,
+                         hide_landmask=False,
+                         density_pixelsize_m=1000,
+                         unitfactor=1,
+                         lcs=None,
+                         surface_only=False,
+                         markersize=20,
+                         origin_marker=None,
+                         legend=None,
+                         legend_loc='best',
+                         title='auto',
+                         fps=8,
+                         lscale=None,
+                         fast=False,
+                         blit=False,
+                         **kwargs):
+        """Animate last run."""
+
+        filename = str(filename) if filename is not None else None
+
+        if self.history is not None and self.num_elements_total(
+        ) == 0 and not hasattr(self, 'ds'):
+            raise ValueError('Please run simulation before animating')
+
+        if compare is not None:
+            compare_list, compare_args = self._get_comparison_xy_for_plots(compare)
+            kwargs.update(compare_args)
+
+        start_time = datetime.now()
+
+        if cmap is None:
+            cmap = 'jet'
+        if isinstance(cmap, str):
+            cmap = matplotlib.cm.get_cmap(cmap)
+
+        start_time = datetime.now()
+        if cmap is None:
+            cmap = 'jet'
+        if isinstance(cmap, str):
+            cmap = matplotlib.cm.get_cmap(cmap)
+
+        if color is False and background is None and lcs is None and density is False:
+            colorbar = False
+
+        markercolor = self.plot_comparison_colors[0]
+
+        if density is True:
+            if hasattr(self, 'ds'):
+                if origin_marker is None:
+                    origin_marker = 0
+                    per_origin_marker = False
+                else:
+                    per_origin_marker = True
+                H, H_om, lon_array, lat_array = self.get_density_xarray(
+                    pixelsize_m=density_pixelsize_m, weights=None)
+                if per_origin_marker is True:
+                    H = H_om[:, :, :, origin_marker]
+            else:
+                if origin_marker is not None:
+                    raise ValueError(
+                        'Separation by origin_marker is only active when imported from file with open_xarray')
+                H, H_submerged, H_stranded, lon_array, lat_array = \
+                    self.get_density_array(pixelsize_m=density_pixelsize_m,
+                                           weight=None)
+                H = H + H_submerged + H_stranded
+
+        fig, ax, crs, x, y, index_of_first, index_of_last = \
+            self.set_up_map(buffer=buffer, corners=corners, lscale=lscale,
+                            fast=fast, hide_landmask=hide_landmask, **kwargs)
+
+        gcrs = ccrs.PlateCarree(globe=crs.globe)
+
+        from datetime import timedelta
+        times = [
+            self.start_time + timedelta(seconds=float(e['age']))
+            for e in self.get_structured_history()[0]
+        ]
+
+        if show_elements is True:
+            index_of_last_deactivated = \
+                index_of_last[self.elements_deactivated.ID - 1]
+
+        if (color is not False or size is not False) and show_elements is True:
+            records = self.get_structured_history()
+
+            if color is not False:
+                colorarray = np.stack([patch[color] for patch in records], axis=0) * unitfactor
+                colorarray_deactivated = np.full_like(colorarray, np.nan)
+                if colorarray.size == 0:
+                    raise ValueError("colorarray ist leer – keine Daten zum Visualisieren.")
+                if vmin is None:
+                    vmin = np.nanmin(colorarray)
+                if vmax is None:
+                    vmax = np.nanmax(colorarray)
+                    vmax = np.nanmax(colorarray)
+
+            if size is not False:
+                if size not in records[0].dtype.names:
+                    raise ValueError(f"Größenattribut '{size}' nicht im Record gefunden.")
+                sizearray = np.stack([patch[size] for patch in records], axis=0) * unitfactor
+                if vmin is None:
+                    vmin_size = np.nanmin(sizearray)
+                else:
+                    vmin_size = vmin
+                if vmax is None:
+                    vmax_size = np.nanmax(sizearray)
+                else:
+                    vmax_size = vmax
+
+        if surface_only is True:
+            z = self.get_property('z')[0]
+            x[z < 0] = np.nan
+            y[z < 0] = np.nan
+
+        if show_trajectories is True:
+            ax.plot(x, y, color='gray', alpha=trajectory_alpha, transform=gcrs)
+
+        c = markercolor if color is False else []
+
+        points = ax.scatter([], [],
+                            c=c,
+                            zorder=10,
+                            edgecolor=[],
+                            cmap=cmap,
+                            vmin=vmin,
+                            vmax=vmax,
+                            s=[],
+                            label=legend[0] if legend else '',
+                            transform=gcrs)
+
+        points_deactivated = ax.scatter([], [],
+                                        c=c,
+                                        zorder=9,
+                                        vmin=vmin,
+                                        vmax=vmax,
+                                        s=[],
+                                        cmap=cmap,
+                                        edgecolor=[],
+                                        alpha=.3,
+                                        transform=gcrs)
+
+        x_deactive, y_deactive = (self.elements_deactivated.lon,
+                                  self.elements_deactivated.lat)
+
+        if compare is not None:
+
+            for cd in compare_list:
+                cd['points_other'] = ax.scatter([], [],
+                                                c=self.plot_comparison_colors[1],
+                                                s=[],
+                                                alpha=0.7,
+                                                marker=compare_marker,
+                                                transform=gcrs,
+                                                label='Vergleich')
+
+        def plot_timestep(i):
+            ret = [points, points_deactivated]
+
+            if title == 'auto':
+                ax.set_title('%s\n%s UTC' % (self._figure_title(), times[i]))
+            else:
+                ax.set_title('%s\n%s UTC' % (title, times[i]))
+
+            if show_elements is True:
+                points.set_offsets(np.c_[x[i, range(x.shape[1])], y[i, range(x.shape[1])]])
+                points_deactivated.set_offsets(
+                    np.c_[x_deactive[index_of_last_deactivated < i],
+                    y_deactive[index_of_last_deactivated < i]])
+
+                if size is not False:
+                    values_size = sizearray[:, i]
+                    min_size, max_size = 10, 100
+                    normed_sizes = (values_size - vmin_size) / (vmax_size - vmin_size + 1e-6)
+                    size_scaled = min_size + normed_sizes * (max_size - min_size)
+                    points.set_sizes(size_scaled)
+
+                if color is not False:
+                    values_color = colorarray[:, i]
+                    points.set_array(values_color)
+                    if isinstance(color, str) or hasattr(color, '__len__'):
+                        points_deactivated.set_array(colorarray_deactivated[
+                                                         index_of_last_deactivated < i])
+
+            if compare is not None:
+                for cd in compare_list:
+                    if 'points_other' in cd and 'lon' in cd and 'lat' in cd:
+                        lon = np.atleast_1d(cd['lon'][i] if cd['lon'].ndim == 2 else cd['lon'])
+                        lat = np.atleast_1d(cd['lat'][i] if cd['lat'].ndim == 2 else cd['lat'])
+                        cd['points_other'].set_offsets(np.c_[lon, lat])
+
+                        if 'value' in cd and size is not False:
+                            val = np.atleast_1d(cd['value'][i] if cd['value'].ndim == 2 else cd['value'])
+                            if np.isscalar(val):
+                                val = np.array([val])
+                            normed = (val - vmin_size) / (vmax_size - vmin_size + 1e-6)
+                            cd['points_other'].set_sizes(10 + normed * 90)
+
+                        if 'value' in cd and color is not False:
+                            val = cd['value'][i] if cd['value'].ndim == 2 else cd['value']
+                            if np.isscalar(val):
+                                val = np.array([val])
+                            cd['points_other'].set_array(val)
+
+                    ret.append(cd['points_other'])
+
+            return ret
+
+        self.__save_or_plot_animation__(plt.gcf(),
+                                        plot_timestep,
+                                        filename,
+                                        frames=x.shape[0],
+                                        fps=fps,
+                                        interval=50,
+                                        blit=blit)
+
+        logger.info('Time to make animation: %s' % (datetime.now() - start_time))
 
 
+# compare geht aber nicht große punkte
     def animation_custom(self,
                   buffer=.2,
                   corners=None,

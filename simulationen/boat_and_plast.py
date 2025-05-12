@@ -10,8 +10,8 @@ from Modelle.OpenDriftPlastCustom import OpenDriftPlastCustom
 from Modelle.GreedyBoat import GreedyBoat
 from collections import defaultdict
 import random
-random.seed(11)
-np.random.seed(11)
+random.seed(42)
+np.random.seed(42)
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +53,7 @@ mid_longitude = ds.longitude[int(len(ds.longitude) / 2)]
 depth = ds.depth.values[0]
 
 
-steps = 500
+steps = 1000
 dt = timedelta(hours=1)
 o.time_step = dt
 o.time_step_output = timedelta(hours=1)
@@ -63,7 +63,7 @@ b.time_step = dt
 b.time_step_output = timedelta(hours=1)
 b.time = start_time
 
-o.seed_plastic_patch(radius_km = 3,number = 11, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+o.seed_plastic_patch(radius_km = 30,number = 11, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
 b.seed_boat(lon=mid_longitude, lat=mid_latitude,number=1, time = start_time, speed_factor=1) #ca 6kmh
 
 
@@ -96,7 +96,7 @@ b.history = records_b
 #print(b.history)
 
 
-o.animation_custom(fast = True, compare= b)
+o.animation_custom_2(fast = True, compare= b,size='value')
 
 
 '''
@@ -133,4 +133,9 @@ for i in range(o.num_elements_deactivated()):
 # Todo farbige animation
 # todo routenfindungchecken, euclidische distanz?
 # Todo notebooks ordnen
-# todo:
+# todo: zeit und value messung
+# todo: Instances vorbereiten -> Big, medium, small (wieviele?)
+
+
+# todo: hohe dichtebereiche
+# todo: richtung in die sie treiben?
