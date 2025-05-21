@@ -524,7 +524,7 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                 if size is not False:
                     values_size = sizearray[:, i]
                     min_size, max_size = 10, 100
-                    normed_sizes = (values_size - vmin_size) / (vmax_size - vmin_size + 1e-6)
+                    normed_sizes = (values_size - vmin_size+ 1e-6) / (vmax_size - vmin_size)
                     size_scaled = min_size + normed_sizes * (max_size - min_size)
                     points.set_sizes(size_scaled)
 
