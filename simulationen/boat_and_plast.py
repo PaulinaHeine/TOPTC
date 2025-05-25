@@ -6,8 +6,11 @@ import numpy as np
 import xarray as xr
 import logging
 from opendrift.readers.reader_netCDF_CF_generic import Reader
+from Modelle.animations import animation_custom
 from Modelle.OpenDriftPlastCustom import OpenDriftPlastCustom
-from Modelle.GreedyBoat import GreedyBoat
+from Modelle.GreedyBoat_value import GreedyBoat_value
+from Modelle.GreedyBoat_distance import GreedyBoat_distance
+
 from collections import defaultdict
 import random
 random.seed(42)
@@ -30,7 +33,7 @@ r = Reader(data_path)
 o.add_reader(r)
 
 # boot initalisieren
-b = GreedyBoat(loglevel=logging.INFO, patches_model=o)
+b = GreedyBoat_distance(loglevel=logging.INFO, patches_model=o)
 r = Reader(data_path)
 b.add_reader(r)
 
@@ -63,8 +66,8 @@ b.time_step = dt
 b.time_step_output = timedelta(hours=1)
 b.time = start_time
 
-o.seed_plastic_patch(radius_km = 1,number = 11, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
-b.seed_boat(lon=mid_longitude, lat=mid_latitude,number=3, time = start_time, speed_factor=1) #ca 6kmh
+o.seed_plastic_patch(radius_km = 4,number = 40, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
+b.seed_boat(lon=mid_longitude, lat=mid_latitude,number=5, time = start_time, speed_factor=1) #ca 6kmh
 
 
 
@@ -98,7 +101,7 @@ b.history = records_b
 #print(b.history)
 
 
-o.animation_custom(fast = True, compare= b,size='value')
+animation_custom(model = o,fast = True, compare= b,size='value')
 
 
 '''
@@ -127,13 +130,13 @@ for i in range(o.num_elements_deactivated()):
 
 
 # Animation anzeigen
-# TODO Animation customizen (dann auch große punkte mögl-> ja aber zusammenführen?)farbige animation
+
 # TODO value counter
 # todo routenfindungchecken, euclidische distanz? -> ja
 # Todo notebooks ordnen
 # todo: zeit und value messung
 # todo: Instances vorbereiten -> Big, medium, small (wieviele?)
-#todo in der grafik verschwinden zuerst kleinere punkte obwohl zuerst die mit dem höchsten value eingefangen werden sollen
+# todo in der grafik verschwinden zuerst kleinere punkte obwohl zuerst die mit dem höchsten value eingefangen werden sollen
 
 
 

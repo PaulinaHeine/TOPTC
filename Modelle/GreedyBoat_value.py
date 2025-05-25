@@ -6,7 +6,7 @@ from opendrift.elements import LagrangianArray
 logger = logging.getLogger(__name__)
 
 
-class GreedyBoatArray(LagrangianArray):
+class GreedyBoat_valueArray(LagrangianArray):
     variables = LagrangianArray.add_variables([
         ('speed_factor', {'dtype': np.float32, 'units': '1', 'description': 'Base speed factor', 'default': 1.0}),
         ('target_lon', {'dtype': np.float32, 'units': 'deg', 'description': 'Target longitude'}),
@@ -14,11 +14,13 @@ class GreedyBoatArray(LagrangianArray):
         ('current_drift_factor', {'dtype': np.float32, 'units': '1', 'description': 'For compatibility', 'default': 10.0}),
         ('is_patch', {'dtype': np.bool_, 'units': '1', 'description': 'True if element is a patch', 'default': False}),
         ('target_patch_index', {'dtype': np.int32, 'units': '1', 'description': 'Index of target patch', 'default': -1}),
+        ('collected_value', {'dtype': np.float32, 'units': '1', 'description': 'Total value collected by the boat', 'default': 0.0}),
+
     ])
 
 
-class GreedyBoat(OpenDriftSimulation):
-    ElementType = GreedyBoatArray
+class GreedyBoat_value(OpenDriftSimulation):
+    ElementType = GreedyBoat_valueArray
 
     required_variables = {
         'x_sea_water_velocity': {'fallback': 0},
@@ -43,7 +45,8 @@ class GreedyBoat(OpenDriftSimulation):
             dist = np.sqrt(dlon**2 + dlat**2)
 
             if dist < (0.1 / 111.0):
-                self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i])
+                self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i], boat_idx=i)
+
                 self.elements.target_patch_index[i] = -1
                 self.assign_target(i)
                 continue
@@ -84,7 +87,7 @@ class GreedyBoat(OpenDriftSimulation):
             if self.elements.target_patch_index[i] == -1:
                 self.assign_target(i)
 
-    def deactivate_patch_near(self, lat, lon, radius_km=0.1):
+    def deactivate_patch_near(self, lat, lon, boat_idx=None, radius_km=0.1):
         threshold_deg = radius_km / 111.0
         num = self.patches_model.num_elements_total()
 
@@ -100,6 +103,9 @@ class GreedyBoat(OpenDriftSimulation):
             )
 
             if d < threshold_deg:
+                if boat_idx is not None:
+                    self.elements.collected_value[boat_idx] += self.patches_model.elements.value[i]
+
                 self.patches_model.elements.value[i] = 0.0
                 self.patches_model.elements.lat[i] = np.nan
                 self.patches_model.elements.lon[i] = np.nan
@@ -146,7 +152,8 @@ class GreedyBoat(OpenDriftSimulation):
                 float(self.elements.lat[i]),
                 float(self.elements.speed_factor[i]),
                 float(self.elements.target_lon[i]),
-                float(self.elements.target_lat[i])
+                float(self.elements.target_lat[i]),
+                float(self.elements.collected_value[i])
             )
 
             while len(self.custom_history_list) <= i:
@@ -160,7 +167,7 @@ class GreedyBoat(OpenDriftSimulation):
         dtype = [
             ('ID', 'i4'), ('status', 'i4'), ('moving', 'i4'), ('age', 'f8'), ('idx', 'i4'),
             ('lon', 'f8'), ('lat', 'f8'), ('speed_factor', 'f4'),
-            ('target_lon', 'f8'), ('target_lat', 'f8')
+            ('target_lon', 'f8'), ('target_lat', 'f8'), ('collected_value', 'f4')
         ]
 
         all_records = []
@@ -169,3 +176,4 @@ class GreedyBoat(OpenDriftSimulation):
             all_records.append(ma.masked_array(arr))
 
         return ma.stack(all_records)
+
