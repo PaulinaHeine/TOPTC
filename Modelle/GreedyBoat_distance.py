@@ -179,6 +179,21 @@ class GreedyBoat_distance(OpenDriftSimulation):
 
             self.custom_history_list[i].append(entry)
 
+    def print_collection_summary(self):
+        print("\n🚤 Boot-Sammelübersicht:")
+        total_value = 0
+        total_collected = 0
+
+        for i in range(self.num_elements_active()):
+            value = float(self.elements.collected_value[i])
+            if value > 0:
+                total_collected += 1
+            total_value += value
+            print(f"  Boot {i}: gesammelter Wert = {value:.2f}")
+
+        print(f"\n📦 Gesamtwert: {total_value:.2f}")
+        print(f"✅ Aktive Boote mit Sammlung: {total_collected} von {self.num_elements_active()}")
+
     def get_structured_history(self):
         import numpy.ma as ma
 

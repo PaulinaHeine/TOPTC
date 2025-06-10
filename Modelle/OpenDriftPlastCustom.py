@@ -7,7 +7,7 @@ import logging;
 logger = logging.getLogger(__name__)
 from opendrift.models.basemodel import OpenDriftSimulation
 from opendrift.elements import LagrangianArray
-from data.Patches.patch_composition import generate_random_patch, generate_test_patch
+from data.Patches.patch_composition import generate_random_patch, generate_test_patch, generate_static_patch
 import math
 from datetime import datetime
 import random
@@ -77,36 +77,32 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         self.next_patch_id = 1 # pacht id startet bei 1, nicht bei 0
         self.custom_history = []
 
-    def seed_plastic_patch(self, lon, lat, time, number=1, radius_km=5, z = 1):
-        for _ in range(number):
+    def seed_plastic_patch(self, lon, lat, time, number=1, radius_km=5, z=1, seed=1):
+        for i in range(number):
+            combined_seed = seed + i
 
-            patch = generate_random_patch() #generate_test_patch()
+            # 1. Patch-Eigenschaften eindeutig und deterministisch
+            patch = generate_static_patch(seed=combined_seed)
             props = patch['properties']
 
             logger.info(f"Seeding patch with properties: {props}")
 
+            # 2. Position eindeutig und deterministisch
+            random.seed(combined_seed)
             km_to_deg = 1.0 / 111.0
             rand_lat = lat + (random.uniform(-1, 1) * radius_km * km_to_deg)
             rand_lon = lon + (random.uniform(-1, 1) * radius_km * km_to_deg / np.cos(np.radians(lat)))
 
+            # 3. Physikalische Ableitungen (keine Zufallswerte!)
             density_factor = max(0.01, (1.025 - props['patch_density']) / 1.025)
             area_factor = props['patch_area'] / 10.0
             weight_factor = 1.0 / (1.0 + props['patch_weight'])
 
-            drift_factor = np.sqrt(density_factor * area_factor * weight_factor)
-            drift_factor = np.clip(drift_factor, 0.01, 0.2)
-
-            drag_coefficient = 0.47 * (1.0 + 0.5 * props['patch_density'])
-            drag_coefficient = np.clip(drag_coefficient, 0.1, 2.0)
-
+            drift_factor = np.clip(np.sqrt(density_factor * area_factor * weight_factor), 0.01, 0.2)
+            drag_coefficient = np.clip(0.47 * (1.0 + 0.5 * props['patch_density']), 0.1, 2.0)
             surface_area_ratio = props['patch_area'] / max(0.01, props['patch_weight'])
             markersize = np.clip(props['patch_area'] * 100, 10, 300)
-
-            value = (props['patch_area'] * props['patch_density'] * props['patch_weight'])/100
-
-            # optional  props['patch_area'] * props['patch_density'] / (1 +  props['patch_weight'])
-            # Todo: skalieren(?)
-            # Wenn das Gewicht die Kapazität der Boote limitiert, ist viel Gewicht erstmal schlecht
+            value = (props['patch_area'] * props['patch_density'] * props['patch_weight']) / 100
 
             self.seed_elements(
                 lon=rand_lon, lat=rand_lat, time=time, number=1,
@@ -114,19 +110,15 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                 density=props['patch_density'],
                 weight=props['patch_weight'],
                 area=props['patch_area'],
-                z=z, #immer mit depth gleichsetzen
-                value= value,
+                z=z,
+                value=value,
                 drag_coefficient=drag_coefficient,
                 surface_area_ratio=surface_area_ratio,
                 markersize=markersize,
                 patch_id=self.next_patch_id
             )
             self.next_patch_id += 1
-
-            # Nur bei stepwise aktivieren
-            self.release_elements() #AAGGGGGGGGGGGG
-
-
+            self.release_elements()
 
     def update(self):
 

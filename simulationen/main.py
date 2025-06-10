@@ -13,8 +13,7 @@ from Modelle.GreedyBoat_distance import GreedyBoat_distance
 
 from collections import defaultdict
 import random
-random.seed(42)
-np.random.seed(42)
+
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO)
@@ -66,8 +65,8 @@ b.time_step = dt
 b.time_step_output = timedelta(hours=1)
 b.time = start_time
 
-o.seed_plastic_patch(radius_km = 4,number = 40, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth)
-b.seed_boat(lon=mid_longitude, lat=mid_latitude,number=5, time = start_time, speed_factor=1) #ca 6kmh
+o.seed_plastic_patch(radius_km = 4,number = 50, lon=mid_longitude, lat=mid_latitude, time = start_time, z = depth, seed = 1)
+b.seed_boat(lon=mid_longitude, lat=mid_latitude,number=2, time = start_time, speed_factor=1) #ca 6kmh
 
 
 
@@ -98,6 +97,7 @@ o.history = records
 
 records_b = b.get_structured_history()
 b.history = records_b
+b.print_collection_summary()
 #print(b.history)
 
 

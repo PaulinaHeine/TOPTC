@@ -146,9 +146,8 @@ def animation_custom(
                         fast=fast, hide_landmask=hide_landmask, **kwargs)
 
     # Anzeigeelemente initialisieren (Zeit + Bootswerte)
-    time_text = ax.text(1.08, 1.0, '', transform=ax.transAxes, fontsize=10, verticalalignment='top')
-    value_texts = ax.text(1.08, 0.94, '', transform=ax.transAxes, fontsize=10, verticalalignment='top')
-    time_text_day = ax.text(1.08, 0.97, '', transform=ax.transAxes, fontsize=10, verticalalignment='top')
+    text = ax.text(1.18, 1.0, '', transform=ax.transAxes, fontsize=10, verticalalignment='top')
+
 
 
     gcrs = ccrs.PlateCarree(globe=crs.globe)
@@ -252,12 +251,9 @@ def animation_custom(
         #if i % 60 == 0:
         elapsed = model.start_time + timedelta(seconds=i * model.time_step.total_seconds()) - model.start_time
         hours = int(elapsed.total_seconds() // 3600)
-        minutes = int((elapsed.total_seconds() % 3600) // 60)
+        #minutes = int((elapsed.total_seconds() % 3600) // 60)
         days = int(elapsed.total_seconds() // 86400)
 
-        #time_text.set_text(f"Hours since Start: {hours:02d}:{minutes:02d}")
-        time_text_day.set_text(f"Days since Start: {days:02d}")
-        value_texts.set_text = [f"lala1"]
 
         # Gesamtwert aller Boote anzeigen (falls in compare enthalten)
         if compare is not None and len(compare_list) > 0:
@@ -275,7 +271,7 @@ def animation_custom(
                 summary_lines.append(f"Gesamt: {total_value:.1f}")
                 summary_text = "\n".join(summary_lines)
 
-                time_text.set_text(f"Stunde {i:02d}\n{summary_text}")
+                text.set_text(f"Hours since start {hours:02d}\nDays since start {days:02d} \n{summary_text}")
 
         if background is not None:
             ret.append(bg)

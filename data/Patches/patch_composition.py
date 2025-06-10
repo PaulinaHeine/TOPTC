@@ -96,3 +96,42 @@ def generate_test_patch():
     properties = calculate_patch_properties(composition)
     return {"composition": composition, "properties": properties}
 
+
+import numpy as np
+import random
+
+def generate_static_patch( seed=None):
+    combined_seed = seed
+    random.seed(combined_seed)
+    np.random.seed(combined_seed)
+
+    weighted_types = [
+        "fragments", "fragments", "fragments", "fragments",
+        "bottle", "bottle", "film", "bag", "bag",
+        "net", "net",
+        "canister", "crate", "foam",
+        "plastic_bin", "barrel", "pvc_pipe",
+        "toy", "toy", "cap", "microplastic", "buoy"
+    ]
+
+    num_types = np.clip(int(np.random.normal(loc=5, scale=2)), 2, 7)
+    #items = random.sample(weighted_types, k=num_types)
+    items = []
+    seen = set()
+    while len(items) < num_types:
+        item = random.choice(weighted_types)
+        if item not in seen:
+            seen.add(item)
+            items.append(item)
+
+    scale = np.random.lognormal(mean=6, sigma=0.6)
+    total_count = int(np.clip(scale, 100, 1000))
+
+    proportions = np.random.dirichlet(np.ones(len(items)))
+    composition = {item: int(total_count * p) for item, p in zip(items, proportions)}
+
+    properties = calculate_patch_properties(composition)
+
+    return {"composition": composition, "properties": properties}
+
+
