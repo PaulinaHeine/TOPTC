@@ -6,7 +6,7 @@ from opendrift.elements import LagrangianArray
 logger = logging.getLogger(__name__)
 
 
-class GreedyBoat_distanceArray(LagrangianArray):
+class GreedyBoatArray(LagrangianArray):
     variables = LagrangianArray.add_variables([
         ('speed_factor', {'dtype': np.float32, 'units': '1', 'description': 'Base speed factor', 'default': 1.0}),
         ('target_lon', {'dtype': np.float32, 'units': 'deg', 'description': 'Target longitude'}),
@@ -19,17 +19,18 @@ class GreedyBoat_distanceArray(LagrangianArray):
     ])
 
 
-class GreedyBoat_distance(OpenDriftSimulation):
-    ElementType = GreedyBoat_distanceArray
+class GreedyBoat(OpenDriftSimulation):
+    ElementType = GreedyBoatArray
 
     required_variables = {
         'x_sea_water_velocity': {'fallback': 0},
         'y_sea_water_velocity': {'fallback': 0},
     }
 
-    def __init__(self, patches_model, *args, **kwargs):
+    def __init__(self, patches_model, target_mode, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.patches_model = patches_model
+        self.target_mode = target_mode
 
     def move_toward_target(self):
         for i in range(self.num_elements_active()):
@@ -48,7 +49,12 @@ class GreedyBoat_distance(OpenDriftSimulation):
                 self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i], boat_idx=i)
 
                 self.elements.target_patch_index[i] = -1
-                self.assign_target(i)
+
+                if self.target_mode == "value":
+                    self.assign_target_value(i)
+                elif self.target_mode == "distance":
+                    self.assign_target_distance(i)
+
                 continue
 
             dlon_norm = dlon / dist
@@ -65,7 +71,7 @@ class GreedyBoat_distance(OpenDriftSimulation):
         self.check_and_pick_new_target()
         self.record_custom_history()
 
-    def seed_boat(self, lon, lat, number=1, time=None, speed_factor=1.0):
+    def seed_boat(self, lon, lat, number=1, time=None, speed_factor=None):
         pre_count = self.num_elements_total()
         self.seed_elements(
             lon=lon,
@@ -77,6 +83,7 @@ class GreedyBoat_distance(OpenDriftSimulation):
         )
         post_count = self.num_elements_total()
         newly_seeded = slice(pre_count, post_count)
+
         self.elements.speed_factor[newly_seeded] = speed_factor
         logger.info(f"⚓ {number} Boot(e) geseedet bei ({lat}, {lon})")
         self.release_elements()
@@ -85,7 +92,10 @@ class GreedyBoat_distance(OpenDriftSimulation):
         threshold_deg = threshold_km / 111.0
         for i in range(self.num_elements_active()):
             if self.elements.target_patch_index[i] == -1:
-                self.assign_target(i)
+                if self.target_mode == "value":
+                    self.assign_target_value(i)
+                elif self.target_mode == "distance":
+                    self.assign_target_distance(i)
 
     def deactivate_patch_near(self, lat, lon, boat_idx=None, radius_km=0.1):
         threshold_deg = radius_km / 111.0
@@ -113,7 +123,30 @@ class GreedyBoat_distance(OpenDriftSimulation):
 
         self.patches_model.deactivate_elements(np.isnan(self.patches_model.elements.lat))
 
-    def assign_target(self, boat_idx):
+    def assign_target_value(self, boat_idx):
+        if self.patches_model.num_elements_active() == 0:
+            logger.info(f"⚓ Boot {boat_idx}: Keine Ziele mehr verfügbar.")
+            return
+
+        if self.elements.target_patch_index[boat_idx] != -1:
+            return  # Boot hat bereits ein Ziel
+
+        values = self.patches_model.elements.value[:self.patches_model.num_elements_active()]
+        taken_targets = set(self.elements.target_patch_index[:self.num_elements_active()])
+        values = np.where([i not in taken_targets for i in range(len(values))], values, -1)
+
+        i_max = np.argmax(values)
+        if values[i_max] == -1:
+            logger.info(f"🛑 Boot {boat_idx}: Kein unbesetzter Patch verfügbar.")
+            return
+
+        self.elements.target_lat[boat_idx] = self.patches_model.elements.lat[i_max]
+        self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[i_max]
+        self.elements.target_patch_index[boat_idx] = i_max
+
+        logger.info(f"🎯 Boot {boat_idx} visiert Patch {i_max} an (value = {values[i_max]:.2f})")
+
+    def assign_target_distance(self, boat_idx):
         if self.patches_model.num_elements_active() == 0:
             logger.info(f"⚓ Boot {boat_idx}: Keine Ziele mehr verfügbar.")
             return
