@@ -2,6 +2,7 @@ import numpy as np
 import logging
 from opendrift.models.basemodel import OpenDriftSimulation
 from opendrift.elements import LagrangianArray
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,9 @@ class GreedyBoatArray(LagrangianArray):
         ('is_patch', {'dtype': np.bool_, 'units': '1', 'description': 'True if element is a patch', 'default': False}),
         ('target_patch_index', {'dtype': np.int32, 'units': '1', 'description': 'Index of target patch', 'default': -1}),
         ('collected_value', {'dtype': np.float32, 'units': '1', 'description': 'Total value collected by the boat', 'default': 0.0}),
-
+        ('capacity', {'dtype': np.float32, 'units': 'kg', 'default': 5000.0}),
+        ('in_rest', {'dtype': np.bool_, 'default': False}),
+        ('resting_hours_left',{'dtype': np.float32, 'units': 'h', 'description': 'Remaining resting hours', 'default': 0.0}),
     ])
 
 
@@ -31,6 +34,32 @@ class GreedyBoat(OpenDriftSimulation):
         super().__init__(*args, **kwargs)
         self.patches_model = patches_model
         self.target_mode = target_mode
+
+    def update(self):
+        super().update()
+        self.check_capacity(self.time)
+        self.check_and_pick_new_target()
+        self.move_toward_target()
+        self.record_custom_history()
+
+    def check_capacity(self, current_time, max_capacity=5000):
+        for i in range(self.num_elements_active()):
+            if self.elements.collected_value[i] >= max_capacity:
+                if self.elements.resting_hours_left[i] <= 0:  # noch nicht in Ruhephase
+
+                    self.elements.resting_hours_left[i] = 4
+                    self.elements.speed_factor[i] = 0.0
+                    logger.info(f"⛔ Boot {i} erreicht Kapazität ({self.elements.collected_value[i]:.2f}) – ruht bis {self.elements.resting_hours_left[i]}")
+
+        for i in range(self.num_elements_active()):
+            if self.elements.resting_hours_left[i] > 0:
+                self.elements.resting_hours_left[i] -= 1
+                if self.elements.resting_hours_left[i] <= 0:
+                    self.elements.collected_value[i] = 0.0
+                    self.elements.speed_factor[i] = 4.0
+                    logger.info(f"✅ Boot {i} ist wieder aktiv und geleert")
+                continue
+
 
     def move_toward_target(self):
         for i in range(self.num_elements_active()):
@@ -60,19 +89,20 @@ class GreedyBoat(OpenDriftSimulation):
             dlon_norm = dlon / dist
             dlat_norm = dlat / dist
 
-            step_deg = (0.06 / 111.0) * self.elements.speed_factor[i]
+            # Bewegung: nicht weiter als nötig
+            max_step_deg = (0.06 / 111.0) * self.elements.speed_factor[i]
+            step_deg = min(dist, max_step_deg)
+
 
             self.elements.lon[i] += dlon_norm * step_deg
             self.elements.lat[i] += dlat_norm * step_deg
 
-    def update(self):
-        super().update()
-        self.move_toward_target()
-        self.check_and_pick_new_target()
-        self.record_custom_history()
 
-    def seed_boat(self, lon, lat, number=1, time=None, speed_factor=None):
+    def seed_boat(self, lon, lat, number=1, time=None, speed_factor=1.0):
+        # 1. Anzahl Elemente vor dem Seeden merken
         pre_count = self.num_elements_total()
+
+        # 2. Boote seeden (in den Buffer)
         self.seed_elements(
             lon=lon,
             lat=lat,
@@ -80,16 +110,23 @@ class GreedyBoat(OpenDriftSimulation):
             time=time,
             target_lon=lon,
             target_lat=lat,
+            speed_factor=speed_factor
         )
+
+        # 3. Anzahl nach dem Seeden
         post_count = self.num_elements_total()
         newly_seeded = slice(pre_count, post_count)
 
+        # 4. Speed-Faktor korrekt auf neue Boote anwenden
         self.elements.speed_factor[newly_seeded] = speed_factor
-        logger.info(f"⚓ {number} Boot(e) geseedet bei ({lat}, {lon})")
+
+        # 5. Aktivieren
         self.release_elements()
 
+        logger.info(f"⚓ {number} Boot(e) geseedet bei ({lat}, {lon}) mit speed_factor={speed_factor}")
+
     def check_and_pick_new_target(self, threshold_km=0.1):
-        threshold_deg = threshold_km / 111.0
+        #threshold_deg = threshold_km / 111.0
         for i in range(self.num_elements_active()):
             if self.elements.target_patch_index[i] == -1:
                 if self.target_mode == "value":
@@ -97,7 +134,8 @@ class GreedyBoat(OpenDriftSimulation):
                 elif self.target_mode == "distance":
                     self.assign_target_distance(i)
 
-    def deactivate_patch_near(self, lat, lon, boat_idx=None, radius_km=0.1):
+
+    def deactivate_patch_near(self, lat, lon, boat_idx=None, radius_km=0.300):
         threshold_deg = radius_km / 111.0
         num = self.patches_model.num_elements_total()
 
@@ -186,6 +224,7 @@ class GreedyBoat(OpenDriftSimulation):
         self.elements.target_patch_index[boat_idx] = best_idx
 
         logger.info(f"🎯 Boot {boat_idx} visiert Patch {best_idx} an (Distanz = {min_dist:.4f}°)")
+        # Todo wenn distanz zu groß wird: neuer patch wird anvisiert
 
     def record_custom_history(self):
         if not hasattr(self, 'custom_history_list'):

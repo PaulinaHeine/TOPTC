@@ -120,6 +120,101 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             self.next_patch_id += 1
             self.release_elements()
 
+    def seed_known_plastic_patch(self, lon, lat, time, *, weight, area, density,
+                                 value, current_drift_factor, drag_coefficient,
+                                 surface_area_ratio, markersize=None, z=1):
+        if markersize is None:
+            markersize = np.clip(area * 100, 10, 300)
+
+        self.seed_elements(
+            lon=lon, lat=lat, time=time, number=1,
+            current_drift_factor=current_drift_factor,
+            density=density,
+            weight=weight,
+            area=area,
+            z=z,
+            value=value,
+            drag_coefficient=drag_coefficient,
+            surface_area_ratio=surface_area_ratio,
+            markersize=markersize,
+            patch_id=self.next_patch_id
+        )
+        self.next_patch_id += 1
+        self.release_elements()
+
+        logger.info(
+            f"🧷 Geseedeter fixer Patch #{self.next_patch_id - 1} bei "
+            f"({lat:.4f}, {lon:.4f}) | Area={area:.1f}, Value={value:.2f}"
+        )
+
+    def seed_random_edge_patches(self, time=None, z=1, margin_deg=1.0, seed=1):
+        """
+        Seedet 1–5 zufällige, aber deterministische Patches entlang des Rands.
+
+        Patch-Eigenschaften sind random, Position liegt am Kartenrand.
+
+        Args:
+            time (datetime): Zeitpunkt des Seedings (default: self.time)
+            z (float): Tiefe
+            margin_deg (float): Breite des Randbereichs in Grad
+            seed (int): Seed für deterministischen Zufall
+        """
+        if time is None:
+            time = self.time
+
+
+        n = random.randint(1, 5)
+
+        lat_min, lat_max = np.nanmin(self.elements.lat), np.nanmax(self.elements.lat)
+        lon_min, lon_max = np.nanmin(self.elements.lon), np.nanmax(self.elements.lon)
+
+        for i in range(n):
+            # Optional: unterschiedlichen Seed pro Patch
+            if seed is not None:
+                random.seed(seed + i)
+
+            # Position: fest am Rand
+            side = random.choice(["top", "bottom", "left", "right"])
+            if side == "top":
+                lat = lat_max - random.uniform(0, margin_deg)
+                lon = random.uniform(lon_min, lon_max)
+            elif side == "bottom":
+                lat = lat_min + random.uniform(0, margin_deg)
+                lon = random.uniform(lon_min, lon_max)
+            elif side == "left":
+                lat = random.uniform(lat_min, lat_max)
+                lon = lon_min + random.uniform(0, margin_deg)
+            else:  # right
+                lat = random.uniform(lat_min, lat_max)
+                lon = lon_max - random.uniform(0, margin_deg)
+
+            # Eigenschaften: zufällig, aber mit seed deterministisch
+            area = random.uniform(20.0, 80.0)
+            weight = random.uniform(10.0, 100.0)
+            density = random.uniform(0.8, 1.05)
+            drift_factor = random.uniform(0.02, 0.1)
+            drag_coefficient = np.clip(0.47 * (1.0 + 0.5 * density), 0.1, 2.0)
+            surface_area_ratio = area / max(0.01, weight)
+            value = (area * weight * density) / 100
+            markersize = np.clip(area * 100, 10, 300)
+
+            self.seed_known_plastic_patch(
+                lon=lon,
+                lat=lat,
+                time=time,
+                z=z,
+                weight=weight,
+                area=area,
+                density=density,
+                value=value,
+                current_drift_factor=drift_factor,
+                drag_coefficient=drag_coefficient,
+                surface_area_ratio=surface_area_ratio,
+                markersize=markersize
+            )
+
+        logger.info(f"🌊 {n} neue Rand-Patches mit zufälligen Eigenschaften geseedet (seed={seed})")
+
     def update(self):
 
         super().update()
@@ -133,7 +228,6 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
                                 profiles=None
                                 )[0]
         self.advect_ocean_current()
-        #self.merge_close_patches()
         self.record_custom_history()
         self.elements.age_seconds += self.time_step.total_seconds()
 
@@ -150,33 +244,74 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             logger.warning("⚠️ Keine Strömungsdaten vorhanden – Bewegung wird übersprungen.")
             return
         self.update_positions(u, v)
+    '''
+    def merge_close_patches(self, threshold_km=0.1, time=None, z=1):
+        if time is None:
+            time = self.time
 
-
-    def merge_close_patches(self, threshold_km=0.1):# TODO soll abhängig von der größe sein
         threshold_deg = threshold_km / 111.0
         positions = np.vstack([self.elements.lat, self.elements.lon]).T
-        merged = set()
+        already_merged = set()
+        merges_to_perform = []
 
         for i in range(len(positions)):
-            if i in merged:
+            if self.elements.status[i] != 0 or np.isnan(self.elements.lat[i]) or i in already_merged:
                 continue
             for j in range(i + 1, len(positions)):
-                if j in merged:
+                if self.elements.status[j] != 0 or np.isnan(self.elements.lat[j]) or j in already_merged:
                     continue
+
                 dist = np.linalg.norm(positions[i] - positions[j])
                 if dist < threshold_deg:
-                    self.elements.weight[i] += self.elements.weight[j]
-                    self.elements.area[i] += self.elements.area[j]
-                    self.elements.current_drift_factor[i] = (self.elements.current_drift_factor[i] + self.elements.current_drift_factor[j]) / 2
-                    self.elements.density[i] = (self.elements.density[i] + self.elements.density[j]) / 2
-                    self.elements.drag_coefficient[i] = (self.elements.drag_coefficient[i] + self.elements.drag_coefficient[j]) / 2
-                    self.elements.surface_area_ratio[i] = (self.elements.surface_area_ratio[i] + self.elements.surface_area_ratio[j]) / 2
-                    self.elements.lat[j] = np.nan
-                    self.elements.lon[j] = np.nan
-                    merged.add(j)
+                    merges_to_perform.append((i, j))
+                    already_merged.add(i)
+                    already_merged.add(j)
+                    break  # i kann nur einmal gemerged werden
 
-        if merged:
-            self.deactivate_elements(np.isnan(self.elements.lat))
+        for i, j in merges_to_perform:
+            total_weight = self.elements.weight[i] + self.elements.weight[j]
+            total_area = self.elements.area[i] + self.elements.area[j]
+            total_value = self.elements.value[i] + self.elements.value[j]
+
+            avg_drift = (self.elements.current_drift_factor[i] + self.elements.current_drift_factor[j]) / 2
+            avg_density = (self.elements.density[i] + self.elements.density[j]) / 2
+            avg_drag = (self.elements.drag_coefficient[i] + self.elements.drag_coefficient[j]) / 2
+            avg_surface = (self.elements.surface_area_ratio[i] + self.elements.surface_area_ratio[j]) / 2
+
+            new_lat = (self.elements.lat[i] + self.elements.lat[j]) / 2
+            new_lon = (self.elements.lon[i] + self.elements.lon[j]) / 2
+
+            # Deaktivieren
+            self.elements.lat[i] = np.nan
+            self.elements.lon[i] = np.nan
+            self.elements.lat[j] = np.nan
+            self.elements.lon[j] = np.nan
+
+            # Neuen Patch seeden
+            self.seed_known_plastic_patch(
+                lon=new_lon,
+                lat=new_lat,
+                time=time,
+                weight=total_weight,
+                area=total_area,
+                value=total_value,
+                current_drift_factor=avg_drift,
+                density=avg_density,
+                drag_coefficient=avg_drag,
+                surface_area_ratio=avg_surface,
+                z=z
+            )
+
+
+            logger.info(
+                f"🔁 Merge: Patch {int(self.elements.patch_id[i])} + {int(self.elements.patch_id[j])} → "
+                f"area={total_area:.1f}, weight={total_weight:.1f}, value={total_value:.2f}, "
+                f"pos=({new_lat:.4f}, {new_lon:.4f})"
+
+            )
+            logger.info(f"➕ Neuer Patch-ID: {self.next_patch_id - 1}")
+
+        self.deactivate_elements(np.isnan(self.elements.lat))
 
     def remove_large_patches_randomly(self):
         """
@@ -212,7 +347,15 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
         if removed > 0:
             self.deactivate_elements(np.isnan(self.elements.lat))
             logger.info(f"{removed} große Patches wurden zufällig entfernt.")
-
+            
+    Warum sind die raus?
+    - Physikalisch falsch	-> Zwei Patches „verschmelzen“ nicht – sie bleiben lose Partikelkonzentrationen.
+    - Information geht verloren	- > Du verlierst Details über Herkunft, Alter, Dichteverteilung.
+    - Boote könnten beide einzeln einsammeln -> 	In der Realität können zwei nahe Patches nacheinander eingesammelt werden.
+    - Dynamik wird verzerrt	-> Das neue Element hat eine neue Position, Gewicht, Driftverhalten – möglicherweise unnatürlich.
+    
+    ABER: es entstehen random neue kleine patches am rand die hereinkommen
+    '''
 
     def record_custom_history(self):
         if not hasattr(self, 'custom_history_list'):
@@ -266,6 +409,14 @@ class OpenDriftPlastCustom(OpenDriftSimulation):
             arr = np.array(patch, dtype=dtype)
             all_records.append(ma.masked_array(arr))
 
+        # Padding: alle Arrays auf gleiche Länge bringen
+        max_len = max(len(r) for r in all_records)
+        for i, r in enumerate(all_records):
+            if len(r) < max_len:
+                padding = np.ma.masked_all((max_len - len(r),), dtype=r.dtype)
+                all_records[i] = ma.concatenate([r, padding])
+
         return ma.stack(all_records)
+
 
 

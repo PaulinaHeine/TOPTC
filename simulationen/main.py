@@ -2,6 +2,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from opendrift.models.basemodel import OpenDriftSimulation
 from datetime import datetime, timedelta
+
 import numpy as np
 import xarray as xr
 import logging
@@ -18,7 +19,7 @@ def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plast
     # Initiate
 
     # Logging konfigurieren
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.CRITICAL)#info
     # Datenpfad
     data_path = '/Users/paulinaheine/Master Business Analytics/Masterarbeit/Technisches/TOPTC/data/currency_data/current_june2024'
     # Dataset laden
@@ -73,11 +74,14 @@ def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plast
 
 
 
-
+    r = 0
     for i in range(0,steps):
         print("Aktueller Simulationszeitpunkt:", o.time)
         b.update()
         o.update()
+        r += 1
+        #if r % 50 == 0:
+            #o.seed_random_edge_patches(seed = plastic_seed)
 
 
         # 4. Zeit voranschreiten
@@ -101,12 +105,12 @@ def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plast
         animation_custom(model = o,fast = True, compare= b,size='value')
 
 main(boat_target_mode = "distance",
-     time_frame = 5000,
-     plastic_radius = 40,
-     plastic_number = 50,
-     plastic_seed = 1,
+     time_frame = 100,
+     plastic_radius = 80,
+     plastic_number = 500,
+     plastic_seed = 200,
      boat_number = 5,
-     speed_factor_boat =9999999999999, # was stimmt hier nicht?
+     speed_factor_boat = 4,
      animation = True)
 
 
