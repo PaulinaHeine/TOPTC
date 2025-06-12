@@ -15,7 +15,7 @@ from collections import defaultdict
 import random
 
 
-def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plastic_number = None, plastic_seed = None, boat_number = None, speed_factor_boat=1, animation = False, weighted_alpha_value = 0.5 ):#, max_capacity_value=6000, resting_hours_amount=12
+def main(boat_target_mode = None, time_frame = None, plastic_radius = None, plastic_number = None, plastic_seed = None, boat_number = None, speed_factor_boat=1, animation = False, weighted_alpha_value = 0.5 ):#, max_capacity_value=6000, resting_hours_amount=12
 
     # Initiate
 
@@ -106,18 +106,18 @@ def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plast
 
     if animation == True:
         animation_custom(model = o,fast = True, compare= b,size='value', show_trajectories=False)
-        #b.plot(fast = True, show_trajectories=True) # zeigt die routen der boote an
+        b.plot(fast = True, show_trajectories=True) # zeigt die routen der boote an
 
 
 
 main(boat_target_mode = "weighted",  # value or distance or weighted
-     time_frame = 200,
+     time_frame = 300,
      plastic_radius = 10,
      plastic_number = 150,
      plastic_seed = 2,
      boat_number = 2,
-     speed_factor_boat = 3,
-     weighted_alpha_value =0.9,
+     speed_factor_boat = 2,
+     weighted_alpha_value =0.5,
      animation = True)
      #max_capacity_value = 50000,
      #resting_hours_amount = 12)

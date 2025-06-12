@@ -16,9 +16,10 @@ class GreedyBoatArray(LagrangianArray):
         ('is_patch', {'dtype': np.bool_, 'units': '1', 'description': 'True if element is a patch', 'default': False}),
         ('target_patch_index', {'dtype': np.int32, 'units': '1', 'description': 'Index of target patch', 'default': -1}),
         ('collected_value', {'dtype': np.float32, 'units': '1', 'description': 'Total value collected by the boat', 'default': 0.0}),
-        ('capacity', {'dtype': np.float32, 'units': 'kg', 'default': 5000.0}),
-        ('in_rest', {'dtype': np.bool_, 'default': False}),
-        ('resting_hours_left',{'dtype': np.float32, 'units': 'h', 'description': 'Remaining resting hours', 'default': 0.0}),
+        #('capacity', {'dtype': np.float32, 'units': 'kg', 'default': 5000.0}),
+        #('in_rest', {'dtype': np.bool_, 'default': False}),
+        #('resting_hours_left',{'dtype': np.float32, 'units': 'h', 'description': 'Remaining resting hours', 'default': 0.0}),
+        ('distance_traveled', {'dtype': np.float32, 'units': 'km', 'default': 0.0}),
     ])
 
 
@@ -113,6 +114,8 @@ class GreedyBoat(OpenDriftSimulation):
 
             self.elements.lon[i] += dlon_norm * step_deg
             self.elements.lat[i] += dlat_norm * step_deg
+
+            self.elements.distance_traveled[i] += step_deg * 111.0
 
 
     def seed_boat(self, lon, lat, number=1, time=None, speed_factor=1.0):
@@ -325,7 +328,9 @@ class GreedyBoat(OpenDriftSimulation):
                 float(self.elements.speed_factor[i]),
                 float(self.elements.target_lon[i]),
                 float(self.elements.target_lat[i]),
-                float(self.elements.collected_value[i])
+                float(self.elements.collected_value[i]),
+                float(self.elements.distance_traveled[i]),
+                int(self.elements.target_patch_index[i]),
             )
 
             while len(self.custom_history_list) <= i:
@@ -333,28 +338,13 @@ class GreedyBoat(OpenDriftSimulation):
 
             self.custom_history_list[i].append(entry)
 
-    def print_collection_summary(self):
-        print("\n🚤 Boot-Sammelübersicht:")
-        total_value = 0
-        total_collected = 0
-
-        for i in range(self.num_elements_active()):
-            value = float(self.elements.collected_value[i])
-            if value > 0:
-                total_collected += 1
-            total_value += value
-            print(f"  Boot {i}: gesammelter Wert = {value:.2f}")
-
-        print(f"\n📦 Gesamtwert: {total_value:.2f}")
-        print(f"✅ Aktive Boote mit Sammlung: {total_collected} von {self.num_elements_active()}")
-
     def get_structured_history(self):
         import numpy.ma as ma
 
         dtype = [
             ('ID', 'i4'), ('status', 'i4'), ('moving', 'i4'), ('age', 'f8'), ('idx', 'i4'),
             ('lon', 'f8'), ('lat', 'f8'), ('speed_factor', 'f4'),
-            ('target_lon', 'f8'), ('target_lat', 'f8'), ('collected_value', 'f4')
+            ('target_lon', 'f8'), ('target_lat', 'f8'), ('collected_value', 'f4'),('distance_traveled', 'f4'),  ('target_patch_index', 'i4')
         ]
 
         all_records = []
@@ -363,3 +353,52 @@ class GreedyBoat(OpenDriftSimulation):
             all_records.append(ma.masked_array(arr))
 
         return ma.stack(all_records)
+
+    def print_collection_summary(self):
+        print("\n🚤 Boot-Sammelübersicht:")
+        total_value = 0
+        total_distance = 0
+        total_collected = 0
+
+        for i in range(self.num_elements_active()):
+            value = float(self.elements.collected_value[i])
+            distance = float(self.elements.distance_traveled[i])
+            if value > 0:
+                total_collected += 1
+            total_value += value
+            total_distance += distance
+
+            print(f"\n🚤 Boot {i}:")
+            print(f"   📦 Gesammelter Wert: {value:.2f}")
+            print(f"   📍 Gefahrene Strecke: {distance:.2f} km")
+            print(f"   🧩 Gesammelte Patches:")
+
+        for boat_idx, history in enumerate(self.custom_history_list):
+            print(f"\n🚤 Boot {boat_idx}:")
+            for t, entry in enumerate(history):
+                (_, status, moving, age, idx, lon, lat, speed, t_lon, t_lat, value, dist, patch_idx) = entry
+                hour = int(age // 3600)
+
+                if 0 <= patch_idx < self.patches_model.num_elements_total():
+                    patch_value = self.patches_model.elements.value[patch_idx]
+                else:
+                    patch_value = float('nan') # ???????
+
+                print(
+                    f"  ⏱ Stunde {hour:>3}: "
+                    f"📍 Pos: ({lat:.4f}, {lon:.4f}), "
+                    f"🎯 Ziel: ({t_lat:.4f}, {t_lon:.4f}) [Patch {patch_idx}], "
+                    f"🏁 Gesammelt: {value:.2f}, "
+                    f"🎯 Zielwert: {patch_value:.2f}, "
+                    f"🛣️ Strecke: {dist:.2f} km, "
+                    #f"🚦 Status: {'aktiv' if status == 0 else 'inaktiv'}, "
+                    #f"➡️ Beweglich: {'ja' if moving else 'nein'}"
+                )
+
+        print(f"\n📦 Gesamtwert aller Boote: {total_value:.2f}")
+        print(f"🚗 Gesamtstrecke aller Boote: {total_distance:.2f} km")
+        print(f"✅ Aktive Boote mit Sammlung: {total_collected} von {self.num_elements_active()}")
+
+        # LOGBUCH CHECKEN
+
+        # flexibel assignene, wenn wert für anderes boot höhr wäre, switchen
