@@ -375,30 +375,35 @@ class GreedyBoat(OpenDriftSimulation):
 
         for boat_idx, history in enumerate(self.custom_history_list):
             print(f"\n🚤 Boot {boat_idx}:")
-            for t, entry in enumerate(history):
-                (_, status, moving, age, idx, lon, lat, speed, t_lon, t_lat, value, dist, patch_idx) = entry
-                hour = int(age // 3600)
 
-                if 0 <= patch_idx < self.patches_model.num_elements_total():
-                    patch_value = self.patches_model.elements.value[patch_idx]
-                else:
-                    patch_value = float('nan') # ???????
+            hour = 0
+            prev = None
 
-                print(
-                    f"  ⏱ Stunde {hour:>3}: "
-                    f"📍 Pos: ({lat:.4f}, {lon:.4f}), "
-                    f"🎯 Ziel: ({t_lat:.4f}, {t_lon:.4f}) [Patch {patch_idx}], "
-                    f"🏁 Gesammelt: {value:.2f}, "
-                    f"🎯 Zielwert: {patch_value:.2f}, "
-                    f"🛣️ Strecke: {dist:.2f} km, "
-                    #f"🚦 Status: {'aktiv' if status == 0 else 'inaktiv'}, "
-                    #f"➡️ Beweglich: {'ja' if moving else 'nein'}"
-                )
+
+
+            for entry in history:
+                (ID, status, moving, age, idx, lon, lat, speed, t_lon, t_lat,
+                 value, dist, patch_idx) = entry
+
+                # Nur wenn sich was Wesentliches ändert
+                if prev is None or (
+                        value != prev[10] or
+                        patch_idx != prev[12] or
+                        #abs(dist - prev[11]) > 0.01 or
+                        status != prev[1]
+                ):
+                    print(
+                        f"  ⏱ Stunde {hour}: "
+                        f"🏁 Gesammelt: {value:.2f}, "
+                        f"🛣️ Strecke: {dist:.2f} km"
+                    )
+                prev = entry
+                hour += 1
 
         print(f"\n📦 Gesamtwert aller Boote: {total_value:.2f}")
         print(f"🚗 Gesamtstrecke aller Boote: {total_distance:.2f} km")
         print(f"✅ Aktive Boote mit Sammlung: {total_collected} von {self.num_elements_active()}")
 
-        # LOGBUCH CHECKEN
+
 
         # flexibel assignene, wenn wert für anderes boot höhr wäre, switchen
