@@ -1,4 +1,6 @@
 import matplotlib
+from scipy.cluster.hierarchy import weighted
+
 matplotlib.use('Qt5Agg')
 from opendrift.models.basemodel import OpenDriftSimulation
 from datetime import datetime, timedelta
@@ -13,7 +15,7 @@ from collections import defaultdict
 import random
 
 
-def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plastic_number = None, plastic_seed = None, boat_number = None, speed_factor_boat=1, animation = False ):#, max_capacity_value=6000, resting_hours_amount=12
+def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plastic_number = None, plastic_seed = None, boat_number = None, speed_factor_boat=1, animation = False, weighted_alpha_value = 0.5 ):#, max_capacity_value=6000, resting_hours_amount=12
 
     # Initiate
 
@@ -31,7 +33,7 @@ def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plast
     o.add_reader(r)
 
     # boot initalisieren
-    b = GreedyBoat(loglevel=logging.INFO, patches_model=o, target_mode=boat_target_mode) # , max_capacity= max_capacity_value, resting_hours= resting_hours_amount
+    b = GreedyBoat(loglevel=logging.INFO, patches_model=o, target_mode=boat_target_mode, weighted_alpha = weighted_alpha_value) # , max_capacity= max_capacity_value, resting_hours= resting_hours_amount
 
 
     r = Reader(data_path)
@@ -108,13 +110,14 @@ def main(boat_target_mode = None,time_frame = None, plastic_radius = None, plast
 
 
 
-main(boat_target_mode = "distance",
+main(boat_target_mode = "weighted",  # value or distance or weighted
      time_frame = 200,
      plastic_radius = 10,
      plastic_number = 150,
      plastic_seed = 2,
      boat_number = 2,
      speed_factor_boat = 3,
+     weighted_alpha_value =0.9,
      animation = True)
      #max_capacity_value = 50000,
      #resting_hours_amount = 12)

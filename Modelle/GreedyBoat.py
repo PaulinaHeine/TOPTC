@@ -30,10 +30,12 @@ class GreedyBoat(OpenDriftSimulation):
         'y_sea_water_velocity': {'fallback': 0},
     }
 
-    def __init__(self, patches_model, target_mode, *args, **kwargs): # capacity, resting hours
+    def __init__(self, patches_model, target_mode, weighted_alpha = None, *args, **kwargs): # capacity, resting hours
         super().__init__(*args, **kwargs)
         self.patches_model = patches_model
         self.target_mode = target_mode
+        if self.target_mode == "weighted":
+            self.weighted_alpha = weighted_alpha
         #self.capacity = capacity
         #self.resting_hours = resting_hours
 
@@ -94,6 +96,8 @@ class GreedyBoat(OpenDriftSimulation):
 
                 if self.target_mode == "value":
                     self.assign_target_value(i)
+                elif self.target_mode == "weighted":
+                    self.assign_target_weighted(i)
                 elif self.target_mode == "distance":
                     self.assign_target_distance(i)
 
@@ -144,6 +148,8 @@ class GreedyBoat(OpenDriftSimulation):
             if self.elements.target_patch_index[i] == -1:
                 if self.target_mode == "value":
                     self.assign_target_value(i)
+                elif self.target_mode == "weighted":
+                    self.assign_target_weighted(i)
                 elif self.target_mode == "distance":
                     self.assign_target_distance(i)
 
@@ -173,6 +179,10 @@ class GreedyBoat(OpenDriftSimulation):
                 logger.info(f"🧹 Patch {i} deaktiviert")
 
         self.patches_model.deactivate_elements(np.isnan(self.patches_model.elements.lat))
+
+##################################################################################################
+############                      OPTIMIZATION FUNCTIONS                    ######################
+##################################################################################################
 
     def assign_target_value(self, boat_idx):
         if self.patches_model.num_elements_active() == 0:
@@ -238,6 +248,65 @@ class GreedyBoat(OpenDriftSimulation):
 
         logger.info(f"🎯 Boot {boat_idx} visiert Patch {best_idx} an (Distanz = {min_dist:.4f}°)")
         # Todo wenn distanz zu groß wird: neuer patch wird anvisiert
+
+    def assign_target_weighted(self, boat_idx):
+        """
+        α (alpha) nahe 1 ⇒ Distanz ist wichtiger
+        → Du bevorzugst nahegelegene Patches, selbst wenn ihr Value niedrig ist.
+        α nahe 0 ⇒ Value ist wichtiger
+        → Du bevorzugst Patches mit hohem Wert, auch wenn sie weiter weg sind.
+        """
+        if self.patches_model.num_elements_active() == 0:
+            logger.info(f"⚓ Boot {boat_idx}: Keine Ziele mehr verfügbar.")
+            return
+
+        if self.elements.target_patch_index[boat_idx] != -1:
+            return  # Boot hat bereits ein Ziel
+
+        boat_lon = self.elements.lon[boat_idx]
+        boat_lat = self.elements.lat[boat_idx]
+        taken_targets = set(self.elements.target_patch_index[:self.num_elements_active()])
+
+        candidates = []
+
+        for i in range(self.patches_model.num_elements_total()):
+            if self.patches_model.elements.status[i] != 0:
+                continue
+            if not self.patches_model.elements.is_patch[i]:
+                continue
+            if i in taken_targets:
+                continue
+
+            patch_value = self.patches_model.elements.value[i]
+            dlon = self.patches_model.elements.lon[i] - boat_lon
+            dlat = self.patches_model.elements.lat[i] - boat_lat
+            dist = np.sqrt(dlon ** 2 + dlat ** 2)
+
+            candidates.append((i, dist, patch_value))
+
+        if not candidates:
+            logger.info(f"🛑 Boot {boat_idx}: Keine geeigneten Patches.")
+            return
+
+        # Normierung vorbereiten
+        max_dist = max([c[1] for c in candidates])
+        max_value = max([c[2] for c in candidates]) or 1.0  # avoid division by zero
+
+        # Scoring
+        scored = []
+        for i, dist, value in candidates:
+            norm_dist = 1 - dist / max_dist  # näher = besser
+            norm_value = value / max_value  # höher = besser
+            score = self.weighted_alpha * norm_dist + (1 - self.weighted_alpha) * norm_value
+            scored.append((i, score))
+
+        best_idx, best_score = max(scored, key=lambda x: x[1])
+
+        self.elements.target_lat[boat_idx] = self.patches_model.elements.lat[best_idx]
+        self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[best_idx]
+        self.elements.target_patch_index[boat_idx] = best_idx
+
+        logger.info(f"🎯 Boot {boat_idx} visiert Patch {best_idx} an (Score = {best_score:.4f}, α = {self.weighted_alpha})")
 
     def record_custom_history(self):
         if not hasattr(self, 'custom_history_list'):
