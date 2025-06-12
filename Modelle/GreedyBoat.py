@@ -30,41 +30,54 @@ class GreedyBoat(OpenDriftSimulation):
         'y_sea_water_velocity': {'fallback': 0},
     }
 
-    def __init__(self, patches_model, target_mode, *args, **kwargs):
+    def __init__(self, patches_model, target_mode, *args, **kwargs): # capacity, resting hours
         super().__init__(*args, **kwargs)
         self.patches_model = patches_model
         self.target_mode = target_mode
+        #self.capacity = capacity
+        #self.resting_hours = resting_hours
 
     def update(self):
         super().update()
-        self.check_capacity(self.time)
         self.check_and_pick_new_target()
         self.move_toward_target()
         self.record_custom_history()
+        self.validate_boats()
 
-    def check_capacity(self, current_time, max_capacity=5000):
-        for i in range(self.num_elements_active()):
-            if self.elements.collected_value[i] >= max_capacity:
-                if self.elements.resting_hours_left[i] <= 0:  # noch nicht in Ruhephase
+    def validate_boats(self):
+        total = self.num_elements_total()
+        active = self.num_elements_active()
 
-                    self.elements.resting_hours_left[i] = 4
-                    self.elements.speed_factor[i] = 0.0
-                    logger.info(f"⛔ Boot {i} erreicht Kapazität ({self.elements.collected_value[i]:.2f}) – ruht bis {self.elements.resting_hours_left[i]}")
+        stuck = 0
+        nan_pos = 0
+        no_target = 0
 
-        for i in range(self.num_elements_active()):
-            if self.elements.resting_hours_left[i] > 0:
-                self.elements.resting_hours_left[i] -= 1
-                if self.elements.resting_hours_left[i] <= 0:
-                    self.elements.collected_value[i] = 0.0
-                    self.elements.speed_factor[i] = 4.0
-                    logger.info(f"✅ Boot {i} ist wieder aktiv und geleert")
-                continue
+        for i in range(active):
+            lat = self.elements.lat[i]
+            lon = self.elements.lon[i]
+            tgt = self.elements.target_patch_index[i]
+            speed = self.elements.speed_factor[i]
 
+            if np.isnan(lat) or np.isnan(lon):
+                nan_pos += 1
+                logger.warning(f"❌ Boot {i} hat ungültige Position: ({lat}, {lon})")
+            if tgt == -1:
+                no_target += 1
+            if speed == 0.0 and tgt == -1:
+                stuck += 1
+
+        logger.info(
+            f"📊 Boot-Status: total={total}, active={active}, NaN-pos={nan_pos}, no-target={no_target}, stuck={stuck}")
 
     def move_toward_target(self):
         for i in range(self.num_elements_active()):
+
             patch_idx = int(self.elements.target_patch_index[i])
             if patch_idx < 0 or patch_idx >= self.patches_model.num_elements_total():
+                continue
+            if np.isnan(self.patches_model.elements.lat[patch_idx]) or np.isnan(
+                    self.patches_model.elements.lon[patch_idx]):
+                self.elements.target_patch_index[i] = -1
                 continue
 
             target_lon = self.patches_model.elements.lon[patch_idx]
@@ -135,7 +148,7 @@ class GreedyBoat(OpenDriftSimulation):
                     self.assign_target_distance(i)
 
 
-    def deactivate_patch_near(self, lat, lon, boat_idx=None, radius_km=0.300):
+    def deactivate_patch_near(self, lat, lon, boat_idx=None, radius_km=0.100):
         threshold_deg = radius_km / 111.0
         num = self.patches_model.num_elements_total()
 
@@ -281,4 +294,3 @@ class GreedyBoat(OpenDriftSimulation):
             all_records.append(ma.masked_array(arr))
 
         return ma.stack(all_records)
-

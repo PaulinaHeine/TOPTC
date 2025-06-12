@@ -31,7 +31,7 @@ def animation_custom(
               corners=None,
               filename=None,
               compare=None,
-              compare_marker='o',
+              compare_marker='v',
               background=None,
               bgalpha=.5,
               vmin=None,
@@ -81,8 +81,6 @@ def animation_custom(
         compare_list, compare_args = model._get_comparison_xy_for_plots(
             compare)
         kwargs.update(compare_args)
-
-
 
 
 
@@ -235,7 +233,7 @@ def animation_custom(
                                             alpha=0.7,
                                             marker=compare_marker,
                                             transform=gcrs,
-                                            label='Vergleich')
+                                            label='Boats')
 
     def plot_timestep(i):
         """Sub function needed for matplotlib animation."""
@@ -258,16 +256,21 @@ def animation_custom(
         # Gesamtwert aller Boote anzeigen (falls in compare enthalten)
         if compare is not None and len(compare_list) > 0:
 
-            collected = compare.history['collected_value']
+            collected = compare.history['collected_value'] # _total
+            #collected_currrent = compare.history['collected_value_current']
+
             #print(collected)
             # Prüfe Zeitindex
             if isinstance(collected, np.ndarray) and i < collected.shape[1]:
                 # Pro Boot und gesamt summieren
                 per_boat = collected[:, i]
+                #per_boat_current = collected_currrent[:, i]
                 total_value = float(np.sum(per_boat))
 
                 # Zusammenbauen des Anzeigetexts
+
                 summary_lines = [f"Boot {idx + 1}: {v:.1f}" for idx, v in enumerate(per_boat)]
+                #summary_lines.extend(f"Boot current {idx + 1}: {v:.1f}" for idx, v in enumerate(per_boat_current))
                 summary_lines.append(f"Gesamt: {total_value:.1f}")
                 summary_text = "\n".join(summary_lines)
 
