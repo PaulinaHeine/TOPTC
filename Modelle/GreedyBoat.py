@@ -20,6 +20,7 @@ class GreedyBoatArray(LagrangianArray):
         #('in_rest', {'dtype': np.bool_, 'default': False}),
         #('resting_hours_left',{'dtype': np.float32, 'units': 'h', 'description': 'Remaining resting hours', 'default': 0.0}),
         ('distance_traveled', {'dtype': np.float32, 'units': 'km', 'default': 0.0}),
+
     ])
 
 
@@ -42,10 +43,18 @@ class GreedyBoat(OpenDriftSimulation):
 
     def update(self):
         super().update()
+        self.environment = self.get_environment(
+                                variables=['x_sea_water_velocity', 'y_sea_water_velocity'],
+                                time=self.time,           # aktueller Zeitpunkt
+                                lon=self.elements.lon,    # aktuelle Längengrade
+                                lat=self.elements.lat,      # aktuelle Breitengrade
+                                z = self.elements.z,
+                                profiles=None
+                                )[0]
         self.check_and_pick_new_target()
         self.move_toward_target()
         self.record_custom_history()
-        self.validate_boats()
+        #self.validate_boats()
 
     def validate_boats(self):
         total = self.num_elements_total()
@@ -74,7 +83,6 @@ class GreedyBoat(OpenDriftSimulation):
 
     def move_toward_target(self):
         for i in range(self.num_elements_active()):
-
             patch_idx = int(self.elements.target_patch_index[i])
             if patch_idx < 0 or patch_idx >= self.patches_model.num_elements_total():
                 continue
@@ -88,11 +96,10 @@ class GreedyBoat(OpenDriftSimulation):
 
             dlon = target_lon - self.elements.lon[i]
             dlat = target_lat - self.elements.lat[i]
-            dist = np.sqrt(dlon**2 + dlat**2)
+            dist = np.sqrt(dlon ** 2 + dlat ** 2)
 
             if dist < (0.1 / 111.0):
                 self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i], boat_idx=i)
-
                 self.elements.target_patch_index[i] = -1
 
                 if self.target_mode == "value":
@@ -101,22 +108,37 @@ class GreedyBoat(OpenDriftSimulation):
                     self.assign_target_weighted(i)
                 elif self.target_mode == "distance":
                     self.assign_target_distance(i)
-
                 continue
 
             dlon_norm = dlon / dist
             dlat_norm = dlat / dist
 
-            # Bewegung: nicht weiter als nötig
+            # Schrittgröße
             max_step_deg = (0.06 / 111.0) * self.elements.speed_factor[i]
             step_deg = min(dist, max_step_deg)
+            step_lon = dlon_norm * step_deg
+            step_lat = dlat_norm * step_deg
 
+            # 🌊 Strömungseinfluss
+            try:
+                u = self.environment['x_sea_water_velocity'][i]
+                v = self.environment['y_sea_water_velocity'][i]
+            except Exception as e:
+                logger.warning(f"⚠️ Strömungsdaten nicht verfügbar für Boot {i}: {e}")
+                u, v = 0.0, 0.0
 
-            self.elements.lon[i] += dlon_norm * step_deg
-            self.elements.lat[i] += dlat_norm * step_deg
+            drift_scale = 3600 / 111000  # m/s → °/h (1h Zeitschritt)
+            drift_lon = u * drift_scale
+            drift_lat = v * drift_scale
 
-            self.elements.distance_traveled[i] += step_deg * 111.0
+            drift_influence = 0.1 #####!!!!! WICHTIG EINFLUSSFAKTOR DER STRÖMUNG AUF BOOT
+            step_lon += drift_influence * drift_lon
+            step_lat += drift_influence * drift_lat
 
+            self.elements.lon[i] += step_lon
+            self.elements.lat[i] += step_lat
+
+            self.elements.distance_traveled[i] += np.sqrt(step_lon ** 2 + step_lat ** 2) * 111.0
 
     def seed_boat(self, lon, lat, number=1, time=None, speed_factor=1.0):
         # 1. Anzahl Elemente vor dem Seeden merken

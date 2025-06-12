@@ -32,9 +32,10 @@ def main(boat_target_mode = None, time_frame = None, plastic_radius = None, plas
     r = Reader(data_path)
     o.add_reader(r)
 
+
     # boot initalisieren
     b = GreedyBoat(loglevel=logging.INFO, patches_model=o, target_mode=boat_target_mode, weighted_alpha = weighted_alpha_value) # , max_capacity= max_capacity_value, resting_hours= resting_hours_amount
-
+    b.add_reader(r)
 
     r = Reader(data_path)
     b.add_reader(r)
@@ -111,12 +112,12 @@ def main(boat_target_mode = None, time_frame = None, plastic_radius = None, plas
 
 
 main(boat_target_mode = "weighted",  # value or distance or weighted
-     time_frame = 300,
-     plastic_radius = 10,
-     plastic_number = 150,
+     time_frame = 500,
+     plastic_radius = 5,
+     plastic_number = 350,
      plastic_seed = 2,
      boat_number = 2,
-     speed_factor_boat = 2,
+     speed_factor_boat = 1,
      weighted_alpha_value =0.5,
      animation = True)
      #max_capacity_value = 50000,
