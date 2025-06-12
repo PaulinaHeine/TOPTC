@@ -56,7 +56,7 @@ class GreedyBoat(OpenDriftSimulation):
         self.record_custom_history()
         #self.validate_boats()
 
-    def validate_boats(self):
+    def validate_boats(self): # only when errer occurs
         total = self.num_elements_total()
         active = self.num_elements_active()
 
