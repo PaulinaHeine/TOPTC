@@ -1,0 +1,133 @@
+
+50h , radius_km = 4,number = 50, seed = 1
+🚤 Boot-Sammelübersicht: distance
+  Boot 0: gesammelter Wert = 10008.95
+  Boot 1: gesammelter Wert = 2014.64
+
+📦 Gesamtwert: 12023.58
+✅ Aktive Boote mit Sammlung: 2 von 2
+
+🚤 Boot-Sammelübersicht: value
+  Boot 0: gesammelter Wert = 0.00
+  Boot 1: gesammelter Wert = 0.00
+
+📦 Gesamtwert: 0.00
+✅ Aktive Boote mit Sammlung: 0 von 2
+
+500h , radius_km = 4,number = 50, seed = 1
+
+🚤 Boot-Sammelübersicht: distance
+  Boot 0: gesammelter Wert = 50162.07
+  Boot 1: gesammelter Wert = 12014.07
+
+📦 Gesamtwert: 62 176.14
+✅ Aktive Boote mit Sammlung: 2 von 2
+
+🚤 Boot-Sammelübersicht: value
+  Boot 0: gesammelter Wert = 57759.79
+  Boot 1: gesammelter Wert = 34236.54
+
+
+
+mit stoppen
+
+🚤 Boot-Sammelübersicht:
+  Boot 0: gesammelter Wert = 4872.25
+  Boot 1: gesammelter Wert = 4998.11
+
+📦 Gesamtwert: 9870.36
+✅ Aktive Boote mit Sammlung: 2 von 2
+
+
+🚤 Boot-Sammelübersicht:
+  Boot 0: gesammelter Wert = 4997.44
+  Boot 1: gesammelter Wert = 4999.18
+
+📦 Gesamtwert: 9996.62
+✅ Aktive Boote mit Sammlung: 2 von 2
+
+
+
+
+- instanzen jz per seed vergleichbar (strömung eh deterministisch)
+- boote halten an wenn sie voll sind -> funktioniert gerado so semi
+    - distance greedy: wenn 80% der kapazität erreicht werden die nächten 5 gecheckt ob sie in den restlichen 20% liegen, wenn ja -> anfahren _> wenn nein schon leeren
+        - oder den nächsten raussuchen der passt? wenn in Xkm radius dann anfahren?
+    - value greedy: wenn über 80% wird der nächste passende rausgesucht
+
+
+
+- wie soll das boot ausleeren gehen?
+- Frage zu greedy 3:
+ Logik wie folgt:
+    2 Ziele: distance minimieren und value maximieren
+        M1: distance geht mit in den Wert von Value ein -> Wert des Values würde sich stetig ändern-> schlecht
+        M2: value nur abhängig von merkmalen des patches, nicht von distance
+        M3: distance geht mit in den Value ein fürs entscheidungskriterium, gutgeschreiben wird aber der "echte" Value des patches  ->  min dist (alpha) max value (1-alpha)
+
+        Wenn M3:
+            - Wir suchen in Radius X (abhängig von position des bootes) nach dem höchsten value?
+            - Wir vergleichen die X nächsten Patches und nehmen das beste?
+            - Wir clustern die Bereiche im Meer, steuern das an was den höchsten wert hat und bewegen uns dann nur dort -> schon sehr aufwändig und je nach stömung nach paar minuten hinfällig
+
+
+- Dynamik current wie geht das mit rein, so ist unser problem doch wie ein statisches
+- neuberechnung der ziele?
+####################################################
+
+🚤 Boot-Sammelübersicht: distance
+  Boot 0: gesammelter Wert = 47219.52
+  Boot 1: gesammelter Wert = 65624.32
+
+📦 Gesamtwert: 112843.84
+✅ Aktive Boote mit Sammlung: 2 von 2
+
+🚤 Boot-Sammelübersicht: value
+  Boot 0: gesammelter Wert = 58985.66
+  Boot 1: gesammelter Wert = 45299.72
+
+📦 Gesamtwert: 104285.38
+✅ Aktive Boote mit Sammlung: 2 von 2
+
+
+PRÜFEN
+
+
+main(boat_target_mode = "distance",
+     time_frame = 200,
+     plastic_radius = 10,
+     plastic_number = 150,
+     plastic_seed = 2,
+     boat_number = 2,
+     speed_factor_boat = 3,
+     animation = True)
+     #max_capacity_value = 50000,
+     #resting_hours_amount = 12)
+-> boot 1 wird dektiviert WARUM? zuweisung auf toten patch? Gelöst mit if np.isnan(self.patches_model.elements.lat[patch_idx]) or np.isnan(self.patches_model.elements.lon[patch_idx]):
+    self.elements.target_patch_index[i] = -1
+    continue
+    ?????
+
+📦 Gesamtwert: 109087.10
+
+
+
+both 📦a=0.5  Gesamtwert: 128 737.56  a =0.7  📦 Gesamtwert: 134 386.59 a= 0.9 📦 Gesamtwert: 149 778.55
+value 📦 Gesamtwert: 99 786.69
+distance 📦 Gesamtwert: 109 087.10
+
+
+📦 Gesamtwert aller Boote: 109048.18
+🚗 Gesamtstrecke aller Boote: 71.04 km
+
+
+
+- new
+: boote jz auch von strömung beeinflusst
+: 3rd greedy als spektrum
+: auf dem weg gesammelte werden auch deaktiviert? (nein, ausprobiert) ->  habe ja euclidische distanz also das boot kann nicht so richtig steuern,
+das soll ja eigentlcih die nächste patch ansteuereung optimieren, außerdem widerspricht es der TOP Strategie
+    Wenn Sammeln auf dem Weg zugelassen:
+        verlieren die expliziten Ziele an Bedeutung, weil zufällige Patches „nebenbei“ gesammelt werden,
+        das Verhalten wird greedy und inkonsistent – du kannst nicht sauber planen,
+        und Erfolg nicht mehr rein über die Heuristik „Welchen Patch soll ich ansteuern?“ messbar.
