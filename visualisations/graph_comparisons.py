@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
-from simulationen.main_greedy import run_greedy  # weil für vgl der masterarbeit erstmal fokus auf greedy
+from misc.main_greedy import run_greedy  # weil für vgl der masterarbeit erstmal fokus auf greedy
+
 
 # Einstellungen für die Simulation
 params = {
@@ -17,7 +18,6 @@ alphas = [0.0, 0.25, 0.5, 0.75, 1.0]
 for i in alphas:
     print("alpha:", i)
     h = run_greedy(
-        boat_target_mode="weighted",
         weighted_alpha_value=i,
         animation=False,
         **params

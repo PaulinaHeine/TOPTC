@@ -16,7 +16,7 @@ import random
 matplotlib.use('Qt5Agg')
 
 
-def run_greedy(boat_target_mode = "weighted", time_frame = 100, plastic_radius = 10, plastic_number = 500, plastic_seed = 1, boat_number = 2, speed_factor_boat=3, animation = False, weighted_alpha_value = 0.5 ):#, max_capacity_value=6000, resting_hours_amount=12
+def run_greedy( time_frame = 100, plastic_radius = 10, plastic_number = 500, plastic_seed = 1, boat_number = 2, speed_factor_boat=3, animation = False, weighted_alpha_value = 0.5 ):#, max_capacity_value=6000, resting_hours_amount=12
 
     # Initiate
 
@@ -36,7 +36,7 @@ def run_greedy(boat_target_mode = "weighted", time_frame = 100, plastic_radius =
 
 
     # boot initalisieren
-    b = GreedyBoat(loglevel=logging.INFO, patches_model=o, target_mode=boat_target_mode, weighted_alpha = weighted_alpha_value) # , max_capacity= max_capacity_value, resting_hours= resting_hours_amount
+    b = GreedyBoat(loglevel=logging.INFO, patches_model=o,  weighted_alpha = weighted_alpha_value) # , max_capacity= max_capacity_value, resting_hours= resting_hours_amount
     b.add_reader(r)
 
 
@@ -109,7 +109,7 @@ def run_greedy(boat_target_mode = "weighted", time_frame = 100, plastic_radius =
 
 
 
-run_greedy(boat_target_mode = "weighted",  # value or distance or weighted
+short_logbook_for_graph = run_greedy(
      time_frame = 500,
      plastic_radius = 10,
      plastic_number = 1000,
@@ -117,12 +117,11 @@ run_greedy(boat_target_mode = "weighted",  # value or distance or weighted
      boat_number = 2,
      speed_factor_boat = 3,
      weighted_alpha_value =0.7, # 0 Value -> 1 Distanz
-     animation = True)
+     animation = False)
 
 
 
 
-
-
+print(short_logbook_for_graph)
 
 
