@@ -1,0 +1,19 @@
+
+- mehrere instanzen vgl (10?) was sind die parameter
+- value counter updaten
+- notebooks ordnen
+- strömungsstärke einstellen
+- simulation für 50h vorher laufen lassen bevor boote reinkommen
+- distanzberechnung
+- spritverbrauch
+- keine krassen wendungen
+- er sammelt auf dem weg auch -> nur wenn er nicht immer nur nach euclidischer distanz fährt sinnvoll
+- er kann auch langsamer fahren
+- readjusten nach gewisser zeit, dass wenn man einen patch nicht erreichen kann man woanders hinfährt
+- algorithmus der am anfang bei alpha = 0 starte und nah gewisser Zeit alpha erhöht.
+- alpha automatisch angepasst auf surroundings
+
+
+
+
+- EHMKE PRÄSI

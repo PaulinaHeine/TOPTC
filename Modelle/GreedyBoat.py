@@ -98,6 +98,9 @@ class GreedyBoat(OpenDriftSimulation):
             dlat = target_lat - self.elements.lat[i]
             dist = np.sqrt(dlon ** 2 + dlat ** 2)
 
+            # auch patches die "auf dme weg" gesammtlet werden weiden deaktiviert
+            #self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i], boat_idx=i, radius_km=0.5)
+
             if dist < (0.1 / 111.0):
                 self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i], boat_idx=i)
                 self.elements.target_patch_index[i] = -1
@@ -374,6 +377,7 @@ class GreedyBoat(OpenDriftSimulation):
             arr = np.array(boat, dtype=dtype)
             all_records.append(ma.masked_array(arr))
 
+
         return ma.stack(all_records)
 
     def print_collection_summary(self):
@@ -381,10 +385,12 @@ class GreedyBoat(OpenDriftSimulation):
         total_value = 0
         total_distance = 0
         total_collected = 0
+        short_logbook = []
 
         for i in range(self.num_elements_active()):
             value = float(self.elements.collected_value[i])
             distance = float(self.elements.distance_traveled[i])
+            short_logbook.append([value, distance])
             if value > 0:
                 total_collected += 1
             total_value += value
@@ -400,7 +406,6 @@ class GreedyBoat(OpenDriftSimulation):
 
             hour = 0
             prev = None
-
 
 
             for entry in history:
@@ -425,7 +430,7 @@ class GreedyBoat(OpenDriftSimulation):
         print(f"\n📦 Gesamtwert aller Boote: {total_value:.2f}")
         print(f"🚗 Gesamtstrecke aller Boote: {total_distance:.2f} km")
         print(f"✅ Aktive Boote mit Sammlung: {total_collected} von {self.num_elements_active()}")
+        short_logbook.append([total_value, total_distance])
 
-
-
+        return short_logbook
         # flexibel assignene, wenn wert für anderes boot höhr wäre, switchen
