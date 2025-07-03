@@ -53,8 +53,8 @@ class GreedyBoat(OpenDriftSimulation):
 
     # GEÄNDERT: __init__ akzeptiert jetzt den Schalter und die neuen Parameter
     def __init__(self, patches_model, weighted_alpha=0.5, adaptive_alpha=False,
-                 scan_radius_km=15.0, density_threshold=5,
-                 high_density_alpha=0.8, low_density_alpha=0.2,
+                 scan_radius_km=15.0, min_density_for_alpha=1,   # Dichte, bei der Alpha minimal ist
+                 max_density_for_alpha=20,  # Dichte, bei der Alpha maximal ist
                  retarget_threshold=1.2, opportunistic_alpha=0.9,enable_retargeting=True,
                  *args, **kwargs):
 
@@ -76,9 +76,8 @@ class GreedyBoat(OpenDriftSimulation):
 
         # Parameter für adaptive Strategie
         self.scan_radius_km = scan_radius_km
-        self.density_threshold = density_threshold
-        self.high_density_alpha = high_density_alpha
-        self.low_density_alpha = low_density_alpha
+        self.min_density = min_density_for_alpha
+        self.max_density = max_density_for_alpha
         self.initial_weighted_alpha = weighted_alpha
 
         # NEU: Parameter für opportunistisches Re-Targeting
@@ -137,21 +136,29 @@ class GreedyBoat(OpenDriftSimulation):
                 count += 1
         return count
 
-
-
-    # NEU: Die Logik für die dynamische Anpassung
     def _update_adaptive_alpha(self):
         """
-        Passt alpha basierend auf der lokalen Patch-Dichte an.
+        Passt den Alpha-Wert kontinuierlich basierend auf der lokalen Patch-Dichte an.
         """
         for i in range(self.num_elements_active()):
+            # 1. Lokale Dichte wie bisher ermitteln
             local_density = self._get_local_patch_density(i)
-            if local_density >= self.density_threshold:
-                # Collector-Modus: Viele Patches in der Nähe -> Distanz priorisieren
-                self.elements.weighted_alpha[i] = self.high_density_alpha
+
+            # 2. Den Anteil innerhalb unseres definierten Dichte-Bereichs berechnen
+            # Sicherstellen, dass der Nenner nicht Null ist
+            density_range = self.max_density - self.min_density
+            if density_range <= 0:
+                density_fraction = 0.5  # Standardwert, falls min/max falsch gesetzt sind
             else:
-                # Explorer-Modus: Kaum Patches in der Nähe -> Wert priorisieren
-                self.elements.weighted_alpha[i] = self.low_density_alpha
+                density_fraction = (local_density - self.min_density) / density_range
+
+            # 3. Den Anteil auf den Bereich 0.0 bis 1.0 begrenzen
+            density_fraction = np.clip(density_fraction, 0.0, 1.0)
+
+            # 4. Den neuen Alpha-Wert zuweisen
+            # Wir könnten hier noch einen min/max Alpha-Wert definieren, aber für 0 bis 1 ist es einfach der Anteil.
+            new_alpha = density_fraction
+            self.elements.weighted_alpha[i] = new_alpha
 
     def check_and_pick_new_target(self, threshold_km=0.1):
         """
@@ -579,7 +586,8 @@ class GreedyBoat(OpenDriftSimulation):
 def run_greedy(time_frame=100, plastic_radius=10, plastic_number=500, plastic_seed=1,
                boat_number=2, speed_factor_boat=3, animation=False,
                weighted_alpha_value=0.5, adaptive_alpha_mode=False,
-               scan_radius_km=15.0, density_threshold=5,retarget_threshold=1.2, opportunistic_alpha=0.9, enable_retargeting=True):
+               scan_radius_km=15.0,                min_density_for_alpha=1,
+               max_density_for_alpha=20,retarget_threshold=1.2, opportunistic_alpha=0.9, enable_retargeting=True):
     # Initiate
 
     # Logging konfigurieren
@@ -612,7 +620,8 @@ def run_greedy(time_frame=100, plastic_radius=10, plastic_number=500, plastic_se
                    adaptive_alpha=adaptive_alpha_mode,
 
                    scan_radius_km=scan_radius_km,
-                   density_threshold=density_threshold,
+                   min_density_for_alpha=min_density_for_alpha,
+                   max_density_for_alpha=max_density_for_alpha,
                     retarget_threshold = retarget_threshold,
                     opportunistic_alpha = opportunistic_alpha,
                    enable_retargeting=enable_retargeting
@@ -696,8 +705,8 @@ def run_greedy(time_frame=100, plastic_radius=10, plastic_number=500, plastic_se
     """
     if animation == True:
         try:
-            #animation_custom(model = o,fast = True, compare= b,size='value', show_trajectories=False)
-            b.plot(fast = True, show_trajectories=True,show_initial=True) # zeigt die routen der boote an
+            animation_custom(model = o,fast = True, compare= b,size='value', show_trajectories=False)
+            #b.plot(fast = True, show_trajectories=True,show_initial=True) # zeigt die routen der boote an
             #b.plot_custom(fast=True, linecolor='royalblue')
         except Exception as e:
             print(f"Fehler bei der Animation: {e}")
@@ -709,8 +718,8 @@ if __name__ == "__main__":
    run_greedy(
          # === Umgebungs-Parameter ===
          time_frame = 200,              # Legt die Dauer der Simulation auf 100 Stunden fest.
-         plastic_radius = 3,              # Erzeugt die Plastik-Patches in einem engen Radius von 3 km.
-         plastic_number = 50,               # Definiert die Anzahl der erzeugten Plastik-Patches.
+         plastic_radius = 10,              # Erzeugt die Plastik-Patches in einem engen Radius von 3 km.
+         plastic_number = 1100,               # Definiert die Anzahl der erzeugten Plastik-Patches.
          plastic_seed = 1,                  # Sorgt für eine reproduzierbare, zufällige Verteilung der Patches.
 
          # === Boots-Parameter ===
@@ -718,18 +727,19 @@ if __name__ == "__main__":
          speed_factor_boat = 1,             # Das Boot fährt mit seiner normalen Basis-Geschwindigkeit.
 
          # === Strategie-Parameter ===
-         weighted_alpha_value = 0.5,        # Die Hauptstrategie des Bootes: 100% Fokus auf den Wert eines Ziels (0.0), ignoriert die Distanz.
+         weighted_alpha_value = 0.5,        # Die Hauptstrategie des Bootes: 100% Fokus auf den Wert eines Ziels (0.0), ignoriert die Distanz. value 0 > dist 1
          adaptive_alpha_mode = False,       # Die Strategie ist statisch und ändert sich nicht automatisch je nach Dichte.
 
          # Die folgenden zwei Werte sind für diesen Lauf inaktiv, da adaptive_alpha_mode=False ist.
-         scan_radius_km = 0.5,              # Radius, in dem das Boot die Patch-Dichte prüfen würde.
-         density_threshold = 5,               #  Schwellenwert, ab dem ein Gebiet als "dicht" gelten würde.
+         scan_radius_km = 0.8,              # Radius, in dem das Boot die Patch-Dichte prüfen würde. 2 /10 des radius?
+        min_density_for_alpha=1,                #Eine Untergrenze (z.B. 1 Patch), bei der das Boot im reinen "Explorer-Modus" ist (Alpha nahe 0, Fokus auf Wert).
+        max_density_for_alpha=8,            # Eine Obergrenze (z.B. 20 Patches), bei der das Boot im reinen "Collector-Modus" ist (Alpha nahe 1, Fokus auf Distanz).
 
          # === Opportunismus-Parameter ===
          enable_retargeting = True,         # Das Boot darf von seinem Hauptziel abweichen, wenn sich eine gute Gelegenheit bietet.
-         retarget_threshold = 0.8,          # Schwelle für den Kurswechsel: Eine neue Gelegenheit muss einen Score von >80% des aktuellen Ziels erreichen.
-         opportunistic_alpha = 0.8,         # Bei der Suche nach Gelegenheiten fokussiert sich das Boot zu 80% auf die Distanz.
+         retarget_threshold = 0.99999,          # Schwelle für den Kurswechsel: Eine neue Gelegenheit muss einen Score von >80% des aktuellen Ziels erreichen.
+         opportunistic_alpha = 0.9,         # Bei der Suche nach Gelegenheiten fokussiert sich das Boot zu 80% auf die Distanz.
 
          # === Ausgabe-Parameter ===
-         animation = True                   # Zeigt am Ende eine grafische Animation der Simulation.
+         animation = True               # Zeigt am Ende eine grafische Animation der Simulation.
     )
