@@ -1,6 +1,8 @@
-import matplotlib.pyplot as plt
-from misc.main_greedy import run_greedy  # weil für vgl der masterarbeit erstmal fokus auf greedy
+from unicodedata import lookup
 
+import matplotlib.pyplot as plt
+#from misc.main_greedy import run_greedy  # weil für vgl der masterarbeit erstmal fokus auf greedy
+from Modelle.GreedyBoat import run_greedy
 
 # Einstellungen für die Simulation
 params = {
@@ -15,14 +17,18 @@ params = {
 logbook = []
 alphas = [0.0, 0.25, 0.5, 0.75, 1.0]
 
+
+
 for i in alphas:
     print("alpha:", i)
-    h = run_greedy(
+    h, *_ = run_greedy(
         weighted_alpha_value=i,
         animation=False,
         **params
     )
     logbook.append(h)
+
+
 
 # Nur die dritten Einträge extrahieren
 logbook_all = [eintrag[2] for eintrag in logbook]
@@ -57,8 +63,12 @@ def vgl_graph(logbook_all, alphas, params):
     plt.show()
 
 
+
 # Aufruf
 vgl_graph(logbook_all, alphas, params)
 
-
+print("Logbook:", logbook)
+print("Logbook_all:", logbook_all)
+print("Values:", [item[0] for item in logbook_all])
+print("Distances:", [item[1] for item in logbook_all])
 

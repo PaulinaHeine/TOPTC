@@ -664,3 +664,87 @@ def animation_custom(
 
 
 
+import matplotlib.pyplot as plt
+import numpy as np
+import cartopy.crs as ccrs
+
+
+
+
+# ==============================================================================
+# Externe Plot-Funktion
+# ==============================================================================
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+# In der Klasse GreedyBoat...
+
+def plot_custom(self, *args, **kwargs):
+    """
+    Eine überschriebene Plot-Methode, die die originale OpenDrift-Funktion aufruft
+    und sie um die Visualisierung von Ereignissen (Sammeln, Zielwechsel) erweitert.
+    """
+    # 1. Rufe die originale plot-Methode der Elternklasse (OpenDriftSimulation) auf.
+    # Diese erledigt die ganze schwere Arbeit: Karte erstellen, Route zeichnen etc.
+    # Wir lassen uns die "Leinwand" (ax) und die Figur (fig) zurückgeben.
+    # Wichtig: show=False, damit wir noch darauf zeichnen können.
+    show = kwargs.pop('show', True)  # Wir fangen das 'show'-Argument ab
+    ax, fig = super().plot(*args, show=False, **kwargs)
+
+    print("🎨 Erweitere Plot mit benutzerdefinierten Ereignis-Markern...")
+
+    # 2. Finde die Koordinaten für die besonderen Ereignisse aus der History
+    history = self.history
+    if history is None or history.shape[0] == 0:
+        if show:
+            plt.show()
+        return ax, fig
+
+    boat_hist = history[0]  # Annahme für ein Boot
+    if boat_hist['age'].mask.all():
+        if show:
+            plt.show()
+        return ax, fig
+
+    valid_steps = ~boat_hist['age'].mask
+    lon = boat_hist['lon'][valid_steps]
+    lat = boat_hist['lat'][valid_steps]
+    event_codes = boat_hist['last_event_code'][valid_steps]
+
+    collection_points, retarget_points = [], []
+    for t in range(len(lon)):
+        if event_codes[t] == 1:
+            collection_points.append({'lon': lon[t], 'lat': lat[t]})
+        elif event_codes[t] == 2:
+            retarget_points.append({'lon': lon[t], 'lat': lat[t]})
+
+    # 3. Zeichne die neuen Marker auf die bestehende Leinwand (ax)
+    # Da wir uns jetzt innerhalb der OpenDrift-Umgebung befinden, MÜSSEN wir
+    # 'transform=self.crs_lonlat' verwenden, damit die Punkte korrekt platziert werden.
+    if collection_points:
+        lons = [p['lon'] for p in collection_points]
+        lats = [p['lat'] for p in collection_points]
+        ax.scatter(lons, lats, c='limegreen', s=120, marker='o',
+                   edgecolors='black', label='Patch eingesammelt', zorder=10,
+                   transform=self.crs_lonlat)
+
+    if retarget_points:
+        lons = [p['lon'] for p in retarget_points]
+        lats = [p['lat'] for p in retarget_points]
+        ax.scatter(lons, lats, c='gold', s=250, marker='*',
+                   edgecolors='black', label='Ziel gewechselt', zorder=10,
+                   transform=self.crs_lonlat)
+
+    # 4. Legende anpassen und Plot anzeigen, falls gewünscht
+    handles, labels = ax.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax.legend(by_label.values(), by_label.keys(), loc='best')
+    plt.title('Trajektorie mit Entscheidungspunkten')
+
+    if show:
+        plt.show()
+
+    return ax, fig

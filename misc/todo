@@ -1,18 +1,18 @@
 
-- mehrere instanzen vgl (10?) was sind die parameter
-- value counter updaten
+
 - notebooks ordnen
 - strömungsstärke einstellen
 - simulation für 50h vorher laufen lassen bevor boote reinkommen
-- distanzberechnung
-- spritverbrauch
-- keine krassen wendungen
-- er sammelt auf dem weg auch -> nur wenn er nicht immer nur nach euclidischer distanz fährt sinnvoll
-- er kann auch langsamer fahren
-- readjusten nach gewisser zeit, dass wenn man einen patch nicht erreichen kann man woanders hinfährt
-- algorithmus der am anfang bei alpha = 0 starte und nah gewisser Zeit alpha erhöht.
-- alpha automatisch angepasst auf surroundings
 
+
+
+- readjusten nach gewisser zeit, dass wenn man einen patch nicht erreichen kann man woanders hinfährt
+
+
+- algorithmus der am anfang bei alpha = 0 starte und nach gewisser Zeit alpha erhöht.
+- alpha passt sich an die umgebung an? -> kann man dann alpha einfach optimieren?
+- alpha automatisch angepasst auf surroundings
+- rekalibrierung des target patches aufgrund von bewegung?
 
 
 
