@@ -3,16 +3,22 @@ from unicodedata import lookup
 import matplotlib.pyplot as plt
 #from misc.main_greedy import run_greedy  # weil für vgl der masterarbeit erstmal fokus auf greedy
 from Modelle.GreedyBoat import run_greedy
-from misc.GreedyBoat_Kopie import run_greedy
+
 
 # Einstellungen für die Simulation
 params = {
     'time_frame': 200,
-    'plastic_radius': 20,
+    'plastic_radius': 10,
     'plastic_number': 100,
     'plastic_seed': 1,
     'boat_number': 2,
     'speed_factor_boat': 3,
+
+    'adaptive_alpha_mode': 0,
+
+    'enable_retargeting': 1,
+    'retarget_threshold': 0.999,
+     'opportunistic_alpha': 0.9,
 }
 # Run-Simulation
 logbook = []

@@ -4,13 +4,12 @@ from opendrift.models.basemodel import OpenDriftSimulation
 from opendrift.elements import LagrangianArray
 from datetime import datetime, timedelta
 import matplotlib
-import matplotlib.pyplot as plt
 from scipy.cluster.hierarchy import weighted
 
 from datetime import datetime, timedelta
 import xarray as xr
 from opendrift.readers.reader_netCDF_CF_generic import Reader
-from visualisations.animations import animation_custom, plot_custom
+from visualisations.animations import animation_custom
 from Modelle.OpenDriftPlastCustom import OpenDriftPlastCustom
 from collections import defaultdict
 import random
@@ -33,16 +32,13 @@ class GreedyBoatArray(LagrangianArray):
         ('target_patch_index', {'dtype': np.int32, 'units': '1', 'description': 'Index of target patch', 'default': -1}),
         ('collected_value', {'dtype': np.float32, 'units': '1', 'description': 'Total value collected by the boat', 'default': 0.0}),
         ('distance_traveled', {'dtype': np.float32, 'units': 'km', 'description': 'Total distance traveled', 'default': 0.0}),
-        # NEU: Jedes Boot bekommt sein eigenes, potenziell dynamisches Alpha
-        ('weighted_alpha', {'dtype': np.float32, 'units': '1','description': 'Weighting factor for target selection (0=Value, 1=Distance)','default': 0.5}),
-        ('last_event_code', {'dtype': np.int8, 'units': '1', 'description': 'Code for the last event', 'default': 0}), # 0 nichts besonderes, 1 patch eingesammelt, 2 Ziel gewechselt
     ])
 
 
 class GreedyBoat(OpenDriftSimulation):
     """
-    Simulates a boat that greedily collects waste patches.
-    The targeting strategy can be static (fixed alpha) or adaptive based on local patch density.
+    Simulates a boat that greedily collects waste patches
+    using a weighted strategy combining patch value and distance.
     """
     ElementType = GreedyBoatArray
 
@@ -51,114 +47,38 @@ class GreedyBoat(OpenDriftSimulation):
         'y_sea_water_velocity': {'fallback': 0},
     }
 
-    # GEÄNDERT: __init__ akzeptiert jetzt den Schalter und die neuen Parameter
-    def __init__(self, patches_model, weighted_alpha=0.5, adaptive_alpha=False,
-                 scan_radius_km=15.0, min_density_for_alpha=1,   # Dichte, bei der Alpha minimal ist
-                 max_density_for_alpha=20,  # Dichte, bei der Alpha maximal ist
-                 retarget_threshold=1.2, opportunistic_alpha=0.9,enable_retargeting=True,
-                 *args, **kwargs):
-
+    def __init__(self, patches_model, weighted_alpha=0.5, *args, **kwargs):
         """
         Initializes the GreedyBoat simulation model.
 
         Args:
-            patches_model: An OpenDrift model instance that contains collectible patches.
-            weighted_alpha (float): The default or static weighting factor.
-            adaptive_alpha (bool): If True, alpha is adjusted dynamically.
-            scan_radius_km (float): Radius in km for density check.
-            density_threshold (int): Number of patches to be considered a "dense" area.
-            high_density_alpha (float): Alpha value for dense areas (Collector-Mode).
-            low_density_alpha (float): Alpha value for sparse areas (Explorer-Mode).
+            patches_model: An OpenDrift model instance that contains the collectible patches.
+            weighted_alpha (float): A weighting factor (0-1) for target selection.
+                                    A higher value prioritizes distance (boats go to closer targets),
+                                    a lower value prioritizes value (boats go to more valuable targets).
         """
         super().__init__(*args, **kwargs)
         self.patches_model = patches_model
-        self.adaptive_alpha_enabled = adaptive_alpha
-
-        # Parameter für adaptive Strategie
-        self.scan_radius_km = scan_radius_km
-        self.min_density = min_density_for_alpha
-        self.max_density = max_density_for_alpha
-        self.initial_weighted_alpha = weighted_alpha
-
-        # NEU: Parameter für opportunistisches Re-Targeting
-        self.retarget_threshold = retarget_threshold
-        self.opportunistic_alpha = opportunistic_alpha
-        self.enable_retargeting = enable_retargeting
+        self.weighted_alpha = weighted_alpha
 
     def update(self):
         """
         Performs one simulation step.
+        This method is called at each timestep by OpenDrift to update the boat's state.
+        It fetches environmental data, assigns/checks targets, moves the boats, and records their history.
         """
         super().update()
         self.environment = self.get_environment(
             variables=['x_sea_water_velocity', 'y_sea_water_velocity'],
-            time=self.time, lon=self.elements.lon, lat=self.elements.lat, z=self.elements.z,
+            time=self.time,
+            lon=self.elements.lon,
+            lat=self.elements.lat,
+            z=self.elements.z,
             profiles=None
         )[0]
-
-        if self.adaptive_alpha_enabled:
-            self._update_adaptive_alpha()
-
-        # GEÄNDERTE LOGIK mit Schalter
-        for i in range(self.num_elements_active()):
-            has_target = self.elements.target_patch_index[i] != -1
-
-            # Fall 1: Re-Targeting ist AN und das Boot hat bereits ein Ziel
-            if self.enable_retargeting and has_target:
-                self._re_evaluate_target(i)
-            # Fall 2: Das Boot hat KEIN Ziel (dieser Fall wird immer ausgeführt, wenn nötig)
-            elif not has_target:
-                self.assign_target_weighted(i)
-
+        self.check_and_pick_new_target()
         self.move_toward_target()
         self.record_custom_history()
-        self.elements.age_seconds += self.time_step.total_seconds()
-
-
-
-    # NEU: Hilfsfunktion zum Scannen der Umgebung
-    def _get_local_patch_density(self, boat_idx):
-        """
-        Zählt die Anzahl der aktiven Patches innerhalb des Scan-Radius um ein Boot.
-        """
-        count = 0
-        boat_lon, boat_lat = self.elements.lon[boat_idx], self.elements.lat[boat_idx]
-        radius_deg = self.scan_radius_km / 111.0
-
-        # Nur aktive Patches im patches_model berücksichtigen
-        active_patch_indices = np.where(self.patches_model.elements.status == 0)[0]
-
-        for i in active_patch_indices:
-            patch_lon = self.patches_model.elements.lon[i]
-            patch_lat = self.patches_model.elements.lat[i]
-            dist = np.sqrt((patch_lon - boat_lon) ** 2 + (patch_lat - boat_lat) ** 2)
-            if dist < radius_deg:
-                count += 1
-        return count
-
-    def _update_adaptive_alpha(self):
-        """
-        Passt den Alpha-Wert kontinuierlich basierend auf der lokalen Patch-Dichte an.
-        """
-        for i in range(self.num_elements_active()):
-            # 1. Lokale Dichte wie bisher ermitteln
-            local_density = self._get_local_patch_density(i)
-
-            # 2. Den Anteil innerhalb unseres definierten Dichte-Bereichs berechnen
-            # Sicherstellen, dass der Nenner nicht Null ist
-            density_range = self.max_density - self.min_density
-            if density_range <= 0:
-                density_fraction = 0.5  # Standardwert, falls min/max falsch gesetzt sind
-            else:
-                density_fraction = (local_density - self.min_density) / density_range
-
-            # 3. Den Anteil auf den Bereich 0.0 bis 1.0 begrenzen
-            density_fraction = np.clip(density_fraction, 0.0, 1.0)
-
-            # 4. Den neuen Alpha-Wert zuweisen
-            # Wir könnten hier noch einen min/max Alpha-Wert definieren, aber für 0 bis 1 ist es einfach der Anteil.
-            new_alpha = density_fraction
-            self.elements.weighted_alpha[i] = new_alpha
 
     def check_and_pick_new_target(self, threshold_km=0.1):
         """
@@ -198,7 +118,6 @@ class GreedyBoat(OpenDriftSimulation):
             if dist < (0.1 / 111.0):  # Check if boat is within collection radius (approx. 0.1km)
                 self.deactivate_patch_near(self.elements.lat[i], self.elements.lon[i], boat_idx=i)
                 self.elements.target_patch_index[i] = -1
-                self.elements.last_event_code[i] = 1 # wir haben etwas eingesammelt
                 self.assign_target_weighted(i)
                 continue
 
@@ -231,7 +150,66 @@ class GreedyBoat(OpenDriftSimulation):
             # Calculate and add distance traveled in km
             self.elements.distance_traveled[i] += np.sqrt(step_lon ** 2 + step_lat ** 2) * 111.0
 
+    def assign_target_weighted(self, boat_idx):
+        """
+        Assigns the best available target patch to a specific boat.
+        The "best" patch is determined by a weighted score that balances
+        the patch's value and its distance from the boat, using `self.weighted_alpha`.
 
+        Args:
+            boat_idx (int): The index of the boat for which to assign a new target.
+        """
+        if self.patches_model.num_elements_active() == 0:
+            return
+
+        if self.elements.target_patch_index[boat_idx] != -1: # Already has a target
+            return
+
+        boat_lon = self.elements.lon[boat_idx]
+        boat_lat = self.elements.lat[boat_idx]
+        # Keep track of targets already assigned to other active boats to prevent duplicates.
+        taken_targets = set(self.elements.target_patch_index[:self.num_elements_active()])
+
+        candidates = []
+        for i in range(self.patches_model.num_elements_total()):
+            # Skip inactive, non-patch, or already targeted elements.
+            if self.patches_model.elements.status[i] != 0:
+                continue
+            if not self.patches_model.elements.is_patch[i]:
+                continue
+            if i in taken_targets:
+                continue
+
+            patch_value = self.patches_model.elements.value[i]
+            # Calculate Euclidean distance in degrees.
+            dlon = self.patches_model.elements.lon[i] - boat_lon
+            dlat = self.patches_model.elements.lat[i] - boat_lat
+            dist = np.sqrt(dlon ** 2 + dlat ** 2)
+
+            candidates.append((i, dist, patch_value))
+
+        if not candidates: # No suitable patches found
+            return
+
+        # Normalize distance and value to a 0-1 range for scoring.
+        max_dist = max([c[1] for c in candidates])
+        max_value = max([c[2] for c in candidates]) or 1.0 # Prevent division by zero
+
+        scored = []
+        for i, dist, value in candidates:
+            norm_dist = 1 - dist / max_dist  # Closer is better (higher score)
+            norm_value = value / max_value   # Higher value is better (higher score)
+            # Calculate weighted score.
+            score = self.weighted_alpha * norm_dist + (1 - self.weighted_alpha) * norm_value
+            scored.append((i, score))
+
+        # Select the candidate with the highest score.
+        best_idx, best_score = max(scored, key=lambda x: x[1])
+
+        # Assign the selected patch as the new target for the boat.
+        self.elements.target_lat[boat_idx] = self.patches_model.elements.lat[best_idx]
+        self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[best_idx]
+        self.elements.target_patch_index[boat_idx] = best_idx
 
     def deactivate_patch_near(self, lat, lon, boat_idx=None, radius_km=0.100):
         """
@@ -274,18 +252,37 @@ class GreedyBoat(OpenDriftSimulation):
         # Officially deactivate elements in the patch model whose positions are NaN.
         self.patches_model.deactivate_elements(np.isnan(self.patches_model.elements.lat))
 
-
     def seed_boat(self, lon, lat, number=1, time=None, speed_factor=1.0):
         """
-        Seeds new boat elements into the simulation.
+        Seeds new boat elements into the simulation at specified coordinates and time.
+
+        Args:
+            lon (float): Longitude for the new boat(s).
+            lat (float): Latitude for the new boat(s).
+            number (int): The number of boats to seed. Defaults to 1.
+            time (datetime, optional): The specific time at which to seed the boats.
+                                      Defaults to the current simulation time if not provided.
+            speed_factor (float): The initial speed factor for the new boat(s).
         """
+        pre_count = self.num_elements_total() # Store current total element count.
+
+        # Use the base OpenDrift method to create new elements.
         self.seed_elements(
-            lon=lon, lat=lat, number=number, time=time,
-            target_lon=lon, target_lat=lat, speed_factor=speed_factor,
-            # NEU: Setze das Alpha auf den initialen Wert
-            weighted_alpha=self.initial_weighted_alpha
+            lon=lon,
+            lat=lat,
+            number=number,
+            time=time,
+            target_lon=lon, # Initial target is self-position, will be updated.
+            target_lat=lat,
+            speed_factor=speed_factor
         )
-        self.release_elements()
+
+        post_count = self.num_elements_total() # New total element count.
+        newly_seeded = slice(pre_count, post_count) # Slice for newly added elements.
+
+        # Ensure the speed factor is set for the new boats.
+        self.elements.speed_factor[newly_seeded] = speed_factor
+        self.release_elements() # Make the newly seeded elements active in the simulation.
 
     def validate_boats(self):
         """
@@ -339,8 +336,6 @@ class GreedyBoat(OpenDriftSimulation):
                 float(self.elements.collected_value[i]),
                 float(self.elements.distance_traveled[i]),
                 int(self.elements.target_patch_index[i]),
-                float(self.elements.weighted_alpha[i]),
-                int(self.elements.last_event_code[i])
             )
 
             # Ensure a list exists for this boat's history.
@@ -348,9 +343,6 @@ class GreedyBoat(OpenDriftSimulation):
                 self.custom_history_list.append([])
             # Append the current entry to the boat's history.
             self.custom_history_list[i].append(entry)
-
-            if self.elements.last_event_code[i] != 0:
-                self.elements.last_event_code[i] = 0
 
     def get_structured_history(self):
         """
@@ -368,7 +360,7 @@ class GreedyBoat(OpenDriftSimulation):
             ('ID', 'i4'), ('status', 'i4'), ('moving', 'i4'), ('age', 'f8'), ('idx', 'i4'),
             ('lon', 'f8'), ('lat', 'f8'), ('speed_factor', 'f4'),
             ('target_lon', 'f8'), ('target_lat', 'f8'), ('collected_value', 'f4'),
-            ('distance_traveled', 'f4'), ('target_patch_index', 'i4'),('weighted_alpha', 'f4'),('last_event_code', 'i1')
+            ('distance_traveled', 'f4'), ('target_patch_index', 'i4')
         ]
 
         all_records = []
@@ -437,157 +429,10 @@ class GreedyBoat(OpenDriftSimulation):
 
         return solutions
 
-    def print_alpha_summary(self):
-        """
-        Gibt eine textbasierte Zusammenfassung der Alpha-Wert-Änderungen für jedes Boot aus.
-        """
-        # Greift direkt auf die im Objekt gespeicherte Historie zu
-        if not hasattr(self, 'history') or self.history is None:
-            print("Keine History-Daten für die Alpha-Zusammenfassung vorhanden.")
-            return
-
-        boat_history = self.history
-        num_boats = boat_history.shape[0]
-        if num_boats == 0:
-            print("Keine Bootsdaten für die Alpha-Zusammenfassung vorhanden.")
-            return
-
-        print("\n--- 🧠 Alpha-Strategie Zusammenfassung ---")
-
-        for i in range(num_boats):
-            print(f"Boot {i}:")
-
-            valid_steps = not boat_history[i]['age'].mask.all()
-            if not valid_steps:
-                print("  - Keine gültigen Daten für dieses Boot.")
-                continue
-
-            age = boat_history[i]['age'][~boat_history[i]['age'].mask]
-            alpha = boat_history[i]['weighted_alpha'][~boat_history[i]['weighted_alpha'].mask]
-
-            if len(alpha) == 0:
-                continue
-
-            last_alpha = alpha[0]
-            print(f"  - Start-Alpha: {last_alpha:.2f}")
-
-            for t_step in range(1, len(alpha)):
-                if alpha[t_step] != last_alpha:
-                    time_in_hours = age[t_step] / 3600
-                    print(f"  - Wechsel zu {alpha[t_step]:.2f} bei Stunde {time_in_hours:.1f}")
-                    last_alpha = alpha[t_step]
-
-    def _find_best_candidate_patch(self, boat_idx, alpha_override=None):
-        """
-        Sucht nach dem besten verfügbaren Patch für ein Boot und gibt dessen Index und Score zurück.
-        Kann mit einem speziellen Alpha-Wert aufgerufen werden.
-        """
-        boat_lon, boat_lat = self.elements.lon[boat_idx], self.elements.lat[boat_idx]
-        taken_targets = set(self.elements.target_patch_index[:self.num_elements_active()])
-
-        candidates = []
-        active_patch_indices = np.where(self.patches_model.elements.status == 0)[0]
-
-        for i in active_patch_indices:
-            is_own_target = (i == self.elements.target_patch_index[boat_idx])
-            if not self.patches_model.elements.is_patch[i] or (i in taken_targets and not is_own_target):
-                continue
-
-            patch_value = self.patches_model.elements.value[i]
-            dist = np.sqrt((self.patches_model.elements.lon[i] - boat_lon) ** 2 + (
-                        self.patches_model.elements.lat[i] - boat_lat) ** 2)
-            candidates.append({'id': i, 'dist': dist, 'value': patch_value})
-
-        if not candidates:
-            return None, -1
-
-        max_dist = max(c['dist'] for c in candidates) or 1.0
-        max_value = max(c['value'] for c in candidates) or 1.0
-
-        current_alpha = alpha_override if alpha_override is not None else self.elements.weighted_alpha[boat_idx]
-
-        best_candidate_id, max_score = None, -1
-        for cand in candidates:
-            norm_dist = 1 - cand['dist'] / max_dist
-            norm_value = cand['value'] / max_value
-            score = current_alpha * norm_dist + (1 - current_alpha) * norm_value
-            if score > max_score:
-                max_score = score
-                best_candidate_id = cand['id']
-
-        return best_candidate_id, max_score
-
-    def assign_target_weighted(self, boat_idx):
-        """
-        Weist einem Boot ohne Ziel das beste verfügbare Ziel zu.
-        """
-        best_patch_id, _ = self._find_best_candidate_patch(boat_idx)
-        if best_patch_id is not None:
-            self.elements.target_patch_index[boat_idx] = best_patch_id
-            self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[best_patch_id]
-            self.elements.target_lat[boat_idx] = self.patches_model.elements.lat[best_patch_id]
-
-    def _re_evaluate_target(self, boat_idx):
-        """
-        Prüft für ein Boot, das bereits ein Ziel hat, ob es eine deutlich bessere Gelegenheit gibt.
-        """
-        current_target_id = self.elements.target_patch_index[boat_idx]
-        if current_target_id == -1: return
-
-        # --- DEBUG START ---
-        print(f"\n--- Boot {boat_idx} bei Stunde {self.time.hour} prüft Ziel {current_target_id} ---")
-        # --- DEBUG ENDE ---
-
-        # 1. Score des aktuellen Ziels mit dem normalen Alpha berechnen
-        _, current_score = self._find_best_candidate_patch(boat_idx, alpha_override=None)
-        if current_score == -1:
-            print(f"DEBUG: Konnte Score für aktuelles Ziel {current_target_id} nicht berechnen.")
-            return
-
-        # 2. Beste Alternative mit dem opportunistischen (hohen) Alpha finden
-        best_alternative_id, best_alternative_score = self._find_best_candidate_patch(boat_idx,
-                                                                                      alpha_override=self.opportunistic_alpha)
-
-        # --- DEBUG START ---
-        print(f"DEBUG: Score aktuelles Ziel ({current_target_id}): {current_score:.3f}")
-        if best_alternative_id is not None:
-            print(
-                f"DEBUG: Beste Alternative ({best_alternative_id}): Score {best_alternative_score:.3f} (berechnet mit opportunistischem alpha={self.opportunistic_alpha})")
-        else:
-            print("DEBUG: Keine Alternativen gefunden.")
-        # --- DEBUG ENDE ---
-
-        # 3. Vergleichen und ggf. Kurs ändern
-        if best_alternative_id is not None and best_alternative_id != current_target_id:
-            required_score = current_score * self.retarget_threshold
-
-            # --- DEBUG START ---
-            print(
-                f"DEBUG: Vergleich: Ist {best_alternative_score:.3f} > {current_score:.3f} * {self.retarget_threshold} (also > {required_score:.3f})?")
-            # --- DEBUG ENDE ---
-
-            if best_alternative_score > required_score:
-                # Diese Zeile solltest du jetzt sehen, wenn ein Wechsel stattfindet
-                print(f"----> ERFOLG! Boot {boat_idx} wechselt Ziel von {current_target_id} zu {best_alternative_id}!")
-                self.elements.target_patch_index[boat_idx] = best_alternative_id
-                self.elements.target_lon[boat_idx] = self.patches_model.elements.lon[best_alternative_id]
-                self.elements.target_lat[boat_idx] = self.patches_model.elements.lat[best_alternative_id]
-                self.elements.last_event_code[boat_idx] = 2 # wir wechseln das ziel
-            # --- DEBUG START ---
-            else:
-                print("DEBUG: Nein, Bedingung nicht erfüllt. Bleibe auf Kurs.")
-            # --- DEBUG ENDE ---
-
-        # In der Klasse GreedyBoat...
 
 
+def run_greedy( time_frame = 100, plastic_radius = 10, plastic_number = 500, plastic_seed = 1, boat_number = 2, speed_factor_boat=3, animation = False, weighted_alpha_value = 0.5 ):#, max_capacity_value=6000, resting_hours_amount=12
 
-
-def run_greedy(time_frame=100, plastic_radius=10, plastic_number=500, plastic_seed=1,
-               boat_number=2, speed_factor_boat=3, animation=False,
-               weighted_alpha_value=0.5, adaptive_alpha_mode=False,
-               scan_radius_km=15.0,                min_density_for_alpha=1,
-               max_density_for_alpha=20,retarget_threshold=1.2, opportunistic_alpha=0.9, enable_retargeting=True):
     # Initiate
 
     # Logging konfigurieren
@@ -614,18 +459,7 @@ def run_greedy(time_frame=100, plastic_radius=10, plastic_number=500, plastic_se
 
 
     # boot initalisieren
-    b = GreedyBoat(loglevel=logging.INFO,
-                   patches_model=o,
-                   weighted_alpha=weighted_alpha_value,
-                   adaptive_alpha=adaptive_alpha_mode,
-
-                   scan_radius_km=scan_radius_km,
-                   min_density_for_alpha=min_density_for_alpha,
-                   max_density_for_alpha=max_density_for_alpha,
-                    retarget_threshold = retarget_threshold,
-                    opportunistic_alpha = opportunistic_alpha,
-                   enable_retargeting=enable_retargeting
-    )
+    b = GreedyBoat(loglevel=logging.INFO, patches_model=o,  weighted_alpha = weighted_alpha_value) # , max_capacity= max_capacity_value, resting_hours= resting_hours_amount
     b.add_reader(r)
 
 
@@ -692,54 +526,24 @@ def run_greedy(time_frame=100, plastic_radius=10, plastic_number=500, plastic_se
     #print(b.history)
     target_patch_route = b.extract_routes_from_history(b.history, boat_number)
     #print(target_patch_route)
-
-    if adaptive_alpha_mode:
-        b.print_alpha_summary()
-    """
-    if animation == True:
-        try:
-            # Rufe nur noch die eine, neue Funktion auf, die alles erledigt.
-            create_and_plot_decisions(b)
-        except Exception as e:
-            print(f"Fehler bei der Visualisierung: {e}")
-    """
     if animation == True:
         try:
             animation_custom(model = o,fast = True, compare= b,size='value', show_trajectories=False)
-            #b.plot(fast = True, show_trajectories=True,show_initial=True) # zeigt die routen der boote an
-            #b.plot_custom(fast=True, linecolor='royalblue')
+            b.plot(fast = True, show_trajectories=True) # zeigt die routen der boote an
         except Exception as e:
             print(f"Fehler bei der Animation: {e}")
 
     return short_logbook_for_graph, b.history, target_patch_route
 
 if __name__ == "__main__":
-   # Starte die Simulation mit einer spezifischen Konfiguration
    run_greedy(
-         # === Umgebungs-Parameter ===
-         time_frame = 200,              # Legt die Dauer der Simulation auf 100 Stunden fest.
-         plastic_radius = 10,              # Erzeugt die Plastik-Patches in einem engen Radius von 3 km.
-         plastic_number = 1100,               # Definiert die Anzahl der erzeugten Plastik-Patches.
-         plastic_seed = 1,                  # Sorgt für eine reproduzierbare, zufällige Verteilung der Patches.
+         time_frame = 100,
+         plastic_radius = 10,
+         plastic_number = 1000,
+         plastic_seed = 1,
+         boat_number = 2,
+         speed_factor_boat = 3,
+         weighted_alpha_value =0.0, # 0 Value -> 1 Distanz
+         animation = False)
 
-         # === Boots-Parameter ===
-         boat_number = 1,                   # Setzt die Anzahl der Boote in der Simulation.
-         speed_factor_boat = 1,             # Das Boot fährt mit seiner normalen Basis-Geschwindigkeit.
 
-         # === Strategie-Parameter ===
-         weighted_alpha_value = 0.5,        # Die Hauptstrategie des Bootes: 100% Fokus auf den Wert eines Ziels (0.0), ignoriert die Distanz. value 0 > dist 1
-         adaptive_alpha_mode = False,       # Die Strategie ist statisch und ändert sich nicht automatisch je nach Dichte.
-
-         # Die folgenden zwei Werte sind für diesen Lauf inaktiv, da adaptive_alpha_mode=False ist.
-         scan_radius_km = 0.8,              # Radius, in dem das Boot die Patch-Dichte prüfen würde. 2 /10 des radius?
-        min_density_for_alpha=1,                #Eine Untergrenze (z.B. 1 Patch), bei der das Boot im reinen "Explorer-Modus" ist (Alpha nahe 0, Fokus auf Wert).
-        max_density_for_alpha=8,            # Eine Obergrenze (z.B. 20 Patches), bei der das Boot im reinen "Collector-Modus" ist (Alpha nahe 1, Fokus auf Distanz).
-
-         # === Opportunismus-Parameter ===
-         enable_retargeting = True,         # Das Boot darf von seinem Hauptziel abweichen, wenn sich eine gute Gelegenheit bietet.
-         retarget_threshold = 0.99999,          # Schwelle für den Kurswechsel: Eine neue Gelegenheit muss einen Score von >80% des aktuellen Ziels erreichen.
-         opportunistic_alpha = 0.9,         # Bei der Suche nach Gelegenheiten fokussiert sich das Boot zu 80% auf die Distanz.
-
-         # === Ausgabe-Parameter ===
-         animation = True               # Zeigt am Ende eine grafische Animation der Simulation.
-    )

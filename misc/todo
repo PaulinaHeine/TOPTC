@@ -15,5 +15,61 @@
 - rekalibrierung des target patches aufgrund von bewegung?
 
 
+- evtl. strömungsabhängige scores?
+
+
+
+-grafik für trajectory
+-adaptive alpha an umgebung besser machen, nicht immer ändern.
+- anfang eher value, ende eher distance !!! bisher ist es andersrum
+
+
 
 - EHMKE PRÄSI
+
+
+Hi Tom :) ich habe nochmal recherchiert bzgl. was mein Problem ist (definitionstechnisch)
+Also Team Orienteering ist klar soweit
+Wir hatten ja noch über Time Windows gesprochen, dass ich das so modelliere, das jeder Patch nur zu einer bestimmten Zeit verfügbar ist.
+Das wäre theoretisch glaube ich auch möglich, allerdings habe ich es im Code nicht so implementiert. Hintergrund:
+Wir befinden uns in Zeitpunkt t, wir haben 2 Patches der Einfachheit halber. Wenn ich das ganze mit time windows modelliere, habe ich
+ja t x Patch A und t x Patch B (also viel mehr als ich eigentlich geseedet habe), weil ein Patch nur zu einer bestimmten Zeit verfügbar ist.
+Wenn ich von Patch A in Zeitpunkt t zu Patch B fahren möchte, muss ich den "target patch" immer wieder anpassen auf den Pacth B der bei
+Zeitpunkt t+1, t+2 usw. verfügbar ist. Das würde theoretisch gehen, aber wäre Codemäßig irgendwie schwierig meiner meinung nach.
+Also ich kann mir vorstellen, dass es besser wäre zu sagen unsere Patches Bewegen sich. Anstatt sie künstlich mit t zu vervielfachen
+TOPTW [39] is an extension of OPTW [24],
+services at each node can be started only within a predefined time
+slot in OPTW, and the number of path m is assumed to be 1 in it,
+while in TOPTW, a team can start giving services within a time-
+bound only, and m is greater than 1. The problem intends to find
+out the optimal cost path for each team within a time budget etc.
+
+
+LAut literatur hier hätte ich es doch eher als Time Dependent beschrieben:
+Time-Dependent OP (TDOP): Traversing time
+between any two vertices is considered as a constant in the case
+of OP, but it is not necessary for all the possibilities, i.e., there
+may be congestion on that particular route. This problem is
+solved by TDOP [16], in which time is considered to be reliant
+on the exodus time of the prior vertex.
+Denn die Resiezeit zwischen zwei Patches wird ja durch den Zeitpunkt t beeinflusst, an welchem wir von Patch A losfahren.
+Die Reisezeit zwischen 2 Patches wird also von der Startzeit vom Startpatch bestimmt.
+
+wenn ich von Patch A zu Patch B fahren möchte, muss Patch B zu Zeitpunkt t also offen sein.
+Sagen wir er ist offen und ich fahre ihn an, dann weiß ich nicht wie lange ich zu Patch B fahre
+
+moving target/ Kinetic
+
+
+
+
+
+
+
+
+
+
+
+
+
+
